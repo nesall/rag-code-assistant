@@ -1,4 +1,4 @@
-\### A local-first, retrieval-augmented assistant for large-scale codebases.
+### A local-first, retrieval-augmented assistant for large-scale codebases.
 
 
 
