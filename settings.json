@@ -1,0 +1,69 @@
+{
+  "tokenizer": {
+    "config_path": "C:\\Users\\Arman\\workspace\\projects\\embedder_cpp\\bge_tokenizer.json"
+  },
+  "embedding": {
+    "api_url": "https://api.openai.com/v1/embeddings",
+    "model": "text-embedding-3-small",
+    "api_key": "${OPENAI_API_KEY}",
+    "batch_size": 32,
+    "timeout_ms": 30000,
+    "retry_attempts": 3
+  },
+  "database": {
+    "sqlite_path": "metadata.db",
+    "index_path": "embeddings.index",
+    "vector_dim": 1536,
+    "max_elements": 100000
+  },
+  "chunking": {
+    "semantic": true,
+    "nof_min_tokens": 50,
+    "nof_max_nokens": 450,
+    "overlap_percentage": 0.1,
+    "code_boundaries": ["function", "class", "method"]
+  },
+  "sources": [
+    {
+      "type": "directory",
+      "path": "c:/users/arman/workspace/projects/embedder_cpp/src",
+      "recursive": true,
+      "extensions": [".cpp", ".h", ".hpp"],
+      "exclude": ["*/build/*", "*/test/*"]
+    },
+    {
+      "type": "directory", 
+      "path": "./docs",
+      "recursive": false,
+      "extensions": [".md", ".txt"],
+      "exclude": []
+    },
+    {
+      "type": "file",
+      "path": "./README.md"
+    },
+    {
+      "type": "url",
+      "url": "https://raw.githubusercontent.com/user/repo/main/docs/api.md",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    },
+    {
+      "type": "url",
+      "url": "https://docs.example.com/api",
+      "timeout_ms": 10000
+    }
+  ],
+  "files": {
+    "default_extensions": [".cpp", ".h", ".py", ".js", ".md"],
+    "global_exclude": ["*/node_modules/*", "*.min.js", "*.log"],
+    "encoding": "utf-8",
+    "max_file_size_mb": 10
+  },
+  "logging": {
+    "level": "info",
+    "file": "embedder.log",
+    "console": true
+  }
+}
