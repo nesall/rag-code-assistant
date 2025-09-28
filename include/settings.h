@@ -7,19 +7,19 @@
 
 class Settings {
 private:
-  nlohmann::json config;
+  nlohmann::json config_;
 
 public:
   Settings(const std::string &path = "settings.json");
-  std::string tokenizerPath() const { return config["tokenizer"]["config_path"]; }
-  int chunkingMaxTokens() const { return config["chunking"]["nof_max_nokens"]; }
-  int chunkingMinTokens() const { return config["chunking"]["nof_min_tokens"]; }
-  float chunkingOverlap() const { return config["chunking"]["overlap_percentage"]; }
-  bool chunkingSemantic() const { return config["chunking"]["semantic"]; }
-  std::string embeddingApiUrl() const { return config["embedding"]["api_url"]; }
-  std::string embeddingBatchSize() const { return config["embedding"]["batch_size"]; }
-  std::string databaseSqlitePath() const { return config["database"]["sqlite_path"]; }
-  nlohmann::json sources() const { return config["sources"]; }
+  std::string tokenizerPath() const { return config_["tokenizer"]["config_path"]; }
+  int chunkingMaxTokens() const { return config_["chunking"]["nof_max_nokens"]; }
+  int chunkingMinTokens() const { return config_["chunking"]["nof_min_tokens"]; }
+  float chunkingOverlap() const { return config_["chunking"]["overlap_percentage"]; }
+  bool chunkingSemantic() const { return config_["chunking"]["semantic"]; }
+  std::string embeddingApiUrl() const { return config_["embedding"]["api_url"]; }
+  std::string embeddingBatchSize() const { return config_["embedding"]["batch_size"]; }
+  std::string databaseSqlitePath() const { return config_["database"]["sqlite_path"]; }
+  nlohmann::json sources() const { return config_["sources"]; }
 
 private:
   void expandEnvVars();

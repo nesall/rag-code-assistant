@@ -19,7 +19,7 @@ Settings::Settings(const std::string &path)
       }
     }
   }
-  file >> config;
+  file >> config_;
 
   // Environment variable substitution
   expandEnvVars();
@@ -28,13 +28,13 @@ Settings::Settings(const std::string &path)
 void Settings::expandEnvVars()
 {
   // Simple ${VAR} substitution
-  std::string apiKey = config["embedding"]["api_key"];
+  std::string apiKey = config_["embedding"]["api_key"];
   if (apiKey.starts_with("${") && apiKey.ends_with("}")) {
     std::string envVar = apiKey.substr(2, apiKey.length() - 3);
     const char *envValue = nullptr;
     envValue = getenv(envVar.c_str());
     if (envValue) {
-      config["embedding"]["api_key"] = std::string(envValue);
+      config_["embedding"]["api_key"] = std::string(envValue);
     }
   }
 }

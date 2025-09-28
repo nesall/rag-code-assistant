@@ -4,6 +4,7 @@
   },
   "embedding": {
     "api_url": "http://127.0.0.1:8583/embedding",
+    "api_key": "${OPENAI_API_KEY}",
     "batch_size": 32,
     "timeout_ms": 30000,
     "retry_attempts": 3
