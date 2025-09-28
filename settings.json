@@ -3,9 +3,7 @@
     "config_path": "C:\\Users\\Arman\\workspace\\projects\\embedder_cpp\\bge_tokenizer.json"
   },
   "embedding": {
-    "api_url": "https://api.openai.com/v1/embeddings",
-    "model": "text-embedding-3-small",
-    "api_key": "${OPENAI_API_KEY}",
+    "api_url": "http://127.0.0.1:8583/embedding",
     "batch_size": 32,
     "timeout_ms": 30000,
     "retry_attempts": 3

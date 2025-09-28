@@ -47,9 +47,11 @@ add_executable(${PROJECT_NAME}
   include/tokenizer.h
   include/settings.h
   include/chunker.h
+  include/embedder.h
   src/tokenizer.cpp
   src/settings.cpp
   src/chunker.cpp
+  src/embedder.cpp
 )
 
 # Link libraries

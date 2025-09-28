@@ -17,7 +17,7 @@ public:
   float chunkingOverlap() const { return config["chunking"]["overlap_percentage"]; }
   bool chunkingSemantic() const { return config["chunking"]["semantic"]; }
   std::string embeddingApiUrl() const { return config["embedding"]["api_url"]; }
-  std::string embeddingApiKey() const { return config["embedding"]["api_key"]; }
+  std::string embeddingBatchSize() const { return config["embedding"]["batch_size"]; }
   std::string databaseSqlitePath() const { return config["database"]["sqlite_path"]; }
   nlohmann::json sources() const { return config["sources"]; }
 
