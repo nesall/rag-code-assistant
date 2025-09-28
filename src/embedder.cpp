@@ -7,49 +7,49 @@
 
 
 EmbeddingClient::EmbeddingClient(const std::string &url, int timeout)
-  : server_url(url), timeout_ms(timeout)
+  : serverUrl_(url), timeoutMs_(timeout)
 {
   parseUrl();
 }
 
 void EmbeddingClient::parseUrl()
 {
-  size_t protocol_end = server_url.find("://");
-  if (protocol_end == std::string::npos) {
+  size_t protocolEnd = serverUrl_.find("://");
+  if (protocolEnd == std::string::npos) {
     throw std::runtime_error("Invalid server URL format");
   }
 
-  size_t host_start = protocol_end + 3;
-  size_t port_start = server_url.find(":", host_start);
-  size_t path_start = server_url.find("/", host_start);
+  size_t hostStart = protocolEnd + 3;
+  size_t port_start = serverUrl_.find(":", hostStart);
+  size_t path_start = serverUrl_.find("/", hostStart);
 
   if (port_start != std::string::npos && port_start < path_start) {
-    host = server_url.substr(host_start, port_start - host_start);
-    port = std::stoi(server_url.substr(port_start + 1, path_start - port_start - 1));
+    host_ = serverUrl_.substr(hostStart, port_start - hostStart);
+    port_ = std::stoi(serverUrl_.substr(port_start + 1, path_start - port_start - 1));
   } else {
-    host = server_url.substr(host_start, path_start - host_start);
-    port = 80;
+    host_ = serverUrl_.substr(hostStart, path_start - hostStart);
+    port_ = 80;
   }
 
-  path = server_url.substr(path_start);
+  path_ = serverUrl_.substr(path_start);
 }
 
 std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts)
 {
   try {
-    httplib::Client client(host, port);
-    client.set_connection_timeout(0, timeout_ms * 1000);
-    client.set_read_timeout(timeout_ms / 1000, (timeout_ms % 1000) * 1000);
+    httplib::Client client(host_, port_);
+    client.set_connection_timeout(0, timeoutMs_ * 1000);
+    client.set_read_timeout(timeoutMs_ / 1000, (timeoutMs_ % 1000) * 1000);
 
-    nlohmann::json request_body;
-    request_body["content"] = texts;
-    std::string body_str = request_body.dump();
+    nlohmann::json requestBody;
+    requestBody["content"] = texts;
+    std::string bodyStr = requestBody.dump();
 
     httplib::Headers headers = {
         {"Content-Type", "application/json"}
     };
 
-    auto res = client.Post(path.c_str(), headers, body_str, "application/json");
+    auto res = client.Post(path_.c_str(), headers, bodyStr, "application/json");
 
     if (!res) {
       throw std::runtime_error("Failed to connect to embedding server");
@@ -71,15 +71,15 @@ std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::st
       throw std::runtime_error("Missing or invalid 'embedding' field in response");
     }
 
-    const auto &embedding_array = item["embedding"];
-    if (embedding_array.empty() || !embedding_array[0].is_array()) {
+    const auto &embeddingArray = item["embedding"];
+    if (embeddingArray.empty() || !embeddingArray[0].is_array()) {
       throw std::runtime_error("Invalid embedding structure");
     }
 
     std::vector<float> embedding;
-    const auto &embedding_data = embedding_array[0];
+    const auto &embeddingData = embeddingArray[0];
 
-    for (const auto &value : embedding_data) {
+    for (const auto &value : embeddingData) {
       if (value.is_number()) {
         embedding.push_back(value.get<float>());
       } else {
@@ -87,8 +87,8 @@ std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::st
       }
     }
 
-    float l2_norm = calculateL2Norm(embedding);
-    std::cout << "[l2norm] " << l2_norm << std::endl;
+    float l2Norm = calculateL2Norm(embedding);
+    std::cout << "[l2norm] " << l2Norm << std::endl;
 
     return embedding;
 
