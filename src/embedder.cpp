@@ -34,8 +34,9 @@ void EmbeddingClient::parseUrl()
   path_ = serverUrl_.substr(path_start);
 }
 
-std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts)
+void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding)
 {
+  embedding.reserve(1024);
   try {
     httplib::Client client(host_, port_);
     client.set_connection_timeout(0, timeoutMs_ * 1000);
@@ -60,7 +61,8 @@ std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::st
         std::to_string(res->status) + " - " + res->body);
     }
 
-    nlohmann::json response = nlohmann::json::parse(res->body);
+    //nlohmann::json response = nlohmann::json::parse(res->body);
+    nlohmann::json response = nlohmann::json::parse(res->body, nullptr, false);
 
     if (!response.is_array() || response.size() != texts.size()) {
       throw std::runtime_error("Unexpected embedding response format");
@@ -76,7 +78,6 @@ std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::st
       throw std::runtime_error("Invalid embedding structure");
     }
 
-    std::vector<float> embedding;
     const auto &embeddingData = embeddingArray[0];
 
     for (const auto &value : embeddingData) {
@@ -89,8 +90,6 @@ std::vector<float> EmbeddingClient::generateEmbeddings(const std::vector<std::st
 
     float l2Norm = calculateL2Norm(embedding);
     std::cout << "[l2norm] " << l2Norm << std::endl;
-
-    return embedding;
 
   } catch (const nlohmann::json::exception &e) {
     std::cerr << "JSON parsing error: " << e.what() << std::endl;
@@ -105,7 +104,8 @@ std::vector<std::vector<float>> EmbeddingClient::generateBatchEmbeddings(const s
 {
   std::vector<std::vector<float>> results;
   for (const auto &text : texts) {
-    auto embedding = generateEmbeddings({ text });
+    std::vector<float> embedding;
+    generateEmbeddings({ text }, embedding);
     results.push_back(embedding);
   }
   return results;
@@ -119,22 +119,3 @@ float EmbeddingClient::calculateL2Norm(const std::vector<float> &vec)
   }
   return std::sqrt(sum);
 }
-
-/*
-int main() {
-    try {
-        EmbeddingClient client("http://localhost:8583/embedding");
-
-        std::vector<std::string> texts = {"Hello world", "This is a test"};
-        auto embedding = client.generateEmbeddings(texts);
-
-        std::cout << "Generated embedding with " << embedding.size() << " dimensions" << std::endl;
-
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
-
-    return 0;
-}
-*/
