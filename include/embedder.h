@@ -6,7 +6,7 @@
 class EmbeddingClient {
 public:
   EmbeddingClient(const std::string &url, int timeout = 30000);
-  std::vector<float> generateEmbeddings(const std::vector<std::string> &texts);
+  void generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding);
   std::vector<std::vector<float>> generateBatchEmbeddings(const std::vector<std::string> &texts);
 
 private:

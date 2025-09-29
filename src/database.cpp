@@ -2,7 +2,6 @@
 #include <iostream>
 #include <algorithm>
 
-// ---- Constructor / Destructor ----
 VectorDatabase::VectorDatabase(const std::string &dbPath, const std::string &indexPath,
   size_t vectorDim, size_t maxElements)
   : db_(nullptr), vectorDim_(vectorDim), maxElements_(maxElements),
@@ -55,7 +54,6 @@ std::vector<size_t> VectorDatabase::insertChunks(const std::vector<Chunk> &chunk
   return chunkIds;
 }
 
-// ---- Search ----
 std::vector<SearchResult> VectorDatabase::search(const std::vector<float> &queryEmbedding, size_t topK)
 {
   if (queryEmbedding.size() != vectorDim_) {
@@ -112,7 +110,6 @@ std::vector<SearchResult> VectorDatabase::searchWithFilter(const std::vector<flo
   return filtered;
 }
 
-// ---- Save ----
 void VectorDatabase::saveIndex()
 {
   if (currentCount_ > 0) {
@@ -121,7 +118,6 @@ void VectorDatabase::saveIndex()
   }
 }
 
-// ---- Stats ----
 VectorDatabase::DatabaseStats VectorDatabase::getStats()
 {
   DatabaseStats stats;
@@ -153,7 +149,6 @@ VectorDatabase::DatabaseStats VectorDatabase::getStats()
   return stats;
 }
 
-// ---- Clear ----
 void VectorDatabase::clear()
 {
   executeSql("DELETE FROM chunks");
@@ -162,7 +157,6 @@ void VectorDatabase::clear()
   currentCount_ = 0;
 }
 
-// ---- Private ----
 void VectorDatabase::initializeDatabase()
 {
   int rc = sqlite3_open(dbPath_.c_str(), &db_);

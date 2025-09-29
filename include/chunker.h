@@ -8,16 +8,6 @@
 #include "tokenizer.h"
 
 
-#if 0
-struct Chunk {
-  std::string content;
-  size_t tokenCount;
-  std::string sourceId;
-  size_t startPos;
-  size_t endPos;
-  std::string chunkType;
-};
-#else
 struct Chunk {
   std::string docId;
   std::string chunkId;
@@ -30,7 +20,6 @@ struct Chunk {
     std::string source;
   } metadata;
 };
-#endif
 
 class Chunker {
 private:

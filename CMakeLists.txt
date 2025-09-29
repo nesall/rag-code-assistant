@@ -48,10 +48,16 @@ add_executable(${PROJECT_NAME}
   include/settings.h
   include/chunker.h
   include/embedder.h
+  include/database.h
+  include/sourceproc.h
+  include/app.h
   src/tokenizer.cpp
   src/settings.cpp
   src/chunker.cpp
   src/embedder.cpp
+  src/database.cpp
+  src/sourceproc.cpp
+  src/app.cpp
 )
 
 # Link libraries
