@@ -10,7 +10,6 @@ std::vector<SourceProcessor::Data> SourceProcessor::getSources()
 {
   std::vector<SourceProcessor::Data> allContent;
   auto sources = settings_.sources();
-
   for (const auto &source : sources) {
     std::string type = source.type;
     if (type == "directory") {

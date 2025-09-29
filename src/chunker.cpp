@@ -24,14 +24,12 @@ namespace {
   std::vector<std::string> splitUnits(const std::string &text) {
     std::vector<std::string> result;
     std::string buf;
-
     auto flushBuf = [&]() {
       if (!buf.empty()) {
         result.push_back(buf);
         buf.clear();
       }
       };
-
     for (unsigned char c : text) {
       if (std::isspace(c)) {
         flushBuf();
@@ -61,18 +59,19 @@ namespace {
 Chunker::Chunker(SimpleTokenCounter &tok, size_t min_tok, size_t max_tok, float overlap)
   : tokenizer_(tok), minTokens_(min_tok), maxTokens_(max_tok), overlapTokens_(static_cast<size_t>(max_tok * overlap))
 {
+#if 0
   functionPatterns_ = {
       std::regex(R"(^\s*(public|private|protected|static|inline|virtual)?\s*\w+[\s\*&]*\w+\s*\([^)]*\)\s*\{)"),
       std::regex(R"(^\s*def\s+\w+\s*\([^)]*\):)"),
       std::regex(R"(^\s*function\s+\w+\s*\([^)]*\)\s*\{)"),
       std::regex(R"(^\s*class\s+\w+)")
   };
-
   sectionPatterns_ = {
       std::regex(R"(^#{1,6}\s+.+$)"),
       std::regex(R"(^\/\*\*[\s\S]*?\*\/$)"),
       std::regex(R"(^\/\/.*$)")
   };
+#endif
 }
 
 std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string &sourceId, bool semantic)
@@ -95,15 +94,12 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
     sourceId.ends_with(".java") || sourceId.ends_with(".cs")) {
     return "code";
   }
-
   if (sourceId.ends_with(".md") || sourceId.ends_with(".txt")) {
     return "text";
   }
-
   size_t code_indicators = 0, total_lines = 0;
   std::stringstream ss(text);
   std::string line;
-
   while (std::getline(ss, line)) {
     total_lines++;
     if (
@@ -124,7 +120,6 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
       code_indicators++;
     }
   }
-
   return (code_indicators > total_lines * 0.3) ? "code" : "text";
 }
 
@@ -163,10 +158,8 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
 {
   auto overlap = overlapTokens_;
   if (maxTokens_ * 0.6 < overlap) overlap = static_cast<size_t>(maxTokens_ * 0.6);
-
-  text = normalizeWhitespaces(text); // assume you have the earlier function
+  text = normalizeWhitespaces(text);
   auto rawUnits = splitUnits(text);
-
   std::vector<Unit> units;
   size_t charPos = 0;
   for (auto &uText : rawUnits) {
@@ -174,11 +167,9 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
     units.push_back({ uText, tks, charPos, charPos + uText.size() });
     charPos += uText.size();
   }
-
   std::vector<Chunk> chunks;
   size_t chunkId = 0;
   size_t start = 0;
-
   while (start < units.size()) {
     size_t tokenCnt = 0;
     size_t end = start;
@@ -187,16 +178,13 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
       tokenCnt += units[end].tokens;
       end++;
     }
-
     if (start < end) {
       size_t startChar = units[start].startChar;
       size_t endChar = units[end - 1].endChar;
       std::string raw = text.substr(startChar, endChar - startChar);
       std::string chunkText;
       for (size_t i = start; i < end; i++) chunkText += units[i].text;
-
       size_t tokensToCheck = tokenCount(raw);
-
       chunks.push_back({
           docId,
           docId + "_" + std::to_string(chunkId++),
@@ -205,9 +193,7 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
           {tokenCnt, startChar, endChar, docId}
         });
     }
-
     if (end >= units.size()) break;
-
     if (overlap > 0) {
       size_t overlapTokens = 0;
       size_t overlapUnits = 0;
@@ -220,15 +206,12 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
       start = end;
     }
   }
-
   return chunks;
 }
 
 std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const std::string &docId)
 {
   std::vector<Chunk> chunks;
-
-  // Split into lines
   std::vector<std::string> lines;
   {
     std::istringstream iss(text);
@@ -238,15 +221,12 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
       lines.insert(lines.end(), subLines.begin(), subLines.end());
     }
   }
-
   size_t chunkId = 0;
   size_t start = 0;
-
   while (start < lines.size()) {
     size_t tokenCnt = 0;
     size_t end = start;
     std::string chunkText;
-
     // Accumulate lines until token budget exceeded
     while (end < lines.size()) {
       auto lineTokens = tokenCount(lines[end]);
@@ -255,7 +235,6 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
       chunkText += lines[end];
       end++;
     }
-
     if (start < end) {
       std::string raw = text.substr(start, end - start);
       chunks.push_back({
@@ -266,9 +245,7 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
           {tokenCnt, start, end, docId}
         });
     }
-
     if (lines.size() <= end) break;
-
     if (0 < overlapTokens_) {
       size_t overlapTokens = 0;
       size_t overlapLines = 0;
@@ -281,24 +258,22 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
       start = end;
     }
   }
-
   return chunks;
 }
 
 std::string Chunker::normalizeWhitespaces(const std::string &str)
 {
-  // trim
   auto start = str.find_first_not_of(" \t\r\n");
   auto end = str.find_last_not_of(" \t\r\n");
   std::string s = (start == std::string::npos) ? "" : str.substr(start, end - start + 1);
-
-  // collapse whitespace except newlines -> single space
+  // collapse whitespace except newlines into single space
   s = std::regex_replace(s, std::regex{ "[^\\S\n]+" }, " ");
   // collapse multiple newlines
   s = std::regex_replace(s, std::regex{ "\n\\s*\n" }, "\n");
   return s;
 }
 
+#if 0
 std::string Chunker::cleanTextForEmbedding(const std::string &text, const std::string &EMBED_PREPEND_PHRASE)
 {
   std::string prepend = EMBED_PREPEND_PHRASE.empty() ? "" : (std::regex_replace(EMBED_PREPEND_PHRASE, std::regex{ "^\\s+|\\s+$" }, "") + " ");
@@ -319,6 +294,7 @@ std::string Chunker::cleanTextForEmbedding(const std::string &text, const std::s
   if (s.size() > 2000) s.resize(2000);
   return s;
 }
+#endif
 
 std::vector<std::string> Chunker::splitIntoLines(const std::string &text)
 {

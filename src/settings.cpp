@@ -17,7 +17,6 @@ Settings::Settings(const std::string &path)
     }
   }
   file >> config_;
-
   // Environment variable substitution
   expandEnvVars();
 }
@@ -81,7 +80,3 @@ void Settings::expandEnvVars()
     }
   }
 }
-
-
-//--------------------------------------------------------------------------
-

@@ -35,10 +35,8 @@ std::vector<size_t> VectorDatabase::insertChunks(const std::vector<Chunk> &chunk
   if (chunks.size() != embeddings.size()) {
     throw std::runtime_error("Chunks and embeddings count mismatch");
   }
-
   std::vector<size_t> chunkIds;
   executeSql("BEGIN TRANSACTION");
-
   try {
     for (size_t i = 0; i < chunks.size(); ++i) {
       size_t id = insertChunk(chunks[i], embeddings[i]);
@@ -58,14 +56,11 @@ std::vector<SearchResult> VectorDatabase::search(const std::vector<float> &query
   if (queryEmbedding.size() != vectorDim_) {
     throw std::runtime_error(std::format("Query embedding dimension mismatch: actual {}, claimed {}", queryEmbedding.size(), vectorDim_));
   }
-
   if (currentCount_ == 0) {
     return {};
   }
-
   auto result = index_->searchKnn(queryEmbedding.data(), topK);
   std::vector<SearchResult> searchResults;
-
   while (!result.empty()) {
     auto [distance, label] = result.top();
     result.pop();
@@ -91,7 +86,6 @@ std::vector<SearchResult> VectorDatabase::searchWithFilter(const std::vector<flo
 {
   auto results = search(queryEmbedding, topK * 2);
   std::vector<SearchResult> filtered;
-
   for (const auto &result : results) {
     bool matches = true;
     if (!sourceFilter.empty() && result.sourceId.find(sourceFilter) == std::string::npos) {
@@ -100,7 +94,6 @@ std::vector<SearchResult> VectorDatabase::searchWithFilter(const std::vector<flo
     if (!typeFilter.empty() && result.chunkType != typeFilter) {
       matches = false;
     }
-
     if (matches) {
       filtered.push_back(result);
       if (filtered.size() >= topK) break;
@@ -121,14 +114,12 @@ VectorDatabase::DatabaseStats VectorDatabase::getStats()
 {
   DatabaseStats stats;
   stats.vectorCount = currentCount_;
-
   sqlite3_stmt *stmt;
   sqlite3_prepare_v2(db_, "SELECT COUNT(*) FROM chunks", -1, &stmt, nullptr);
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     stats.totalChunks = sqlite3_column_int64(stmt, 0);
   }
   sqlite3_finalize(stmt);
-
   sqlite3_prepare_v2(db_, "SELECT source_id, COUNT(*) FROM chunks GROUP BY source_id", -1, &stmt, nullptr);
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     std::string source = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
@@ -136,7 +127,6 @@ VectorDatabase::DatabaseStats VectorDatabase::getStats()
     stats.sources.emplace_back(source, count);
   }
   sqlite3_finalize(stmt);
-
   sqlite3_prepare_v2(db_, "SELECT chunk_type, COUNT(*) FROM chunks GROUP BY chunk_type", -1, &stmt, nullptr);
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     std::string type = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
@@ -144,7 +134,6 @@ VectorDatabase::DatabaseStats VectorDatabase::getStats()
     stats.types.emplace_back(type, count);
   }
   sqlite3_finalize(stmt);
-
   return stats;
 }
 
@@ -162,7 +151,6 @@ void VectorDatabase::initializeDatabase()
   if (rc != SQLITE_OK) {
     throw std::runtime_error("Cannot open database: " + std::string(sqlite3_errmsg(db_)));
   }
-
   const char *createTableSql = R"(
         CREATE TABLE IF NOT EXISTS chunks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,7 +163,6 @@ void VectorDatabase::initializeDatabase()
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     )";
-
   executeSql(createTableSql);
 }
 
@@ -217,20 +204,17 @@ size_t VectorDatabase::insertMetadata(const Chunk &chunk)
 
   sqlite3_stmt *stmt;
   sqlite3_prepare_v2(db_, insertSql, -1, &stmt, nullptr);
-
   sqlite3_bind_text(stmt, 1, chunk.text.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, chunk.docId.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 3, chunk.metadata.source.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_int64(stmt, 4, chunk.metadata.startChar);
   sqlite3_bind_int64(stmt, 5, chunk.metadata.endChar);
   sqlite3_bind_int64(stmt, 6, chunk.metadata.tokenCount);
-
   int rc = sqlite3_step(stmt);
   if (rc != SQLITE_DONE) {
     sqlite3_finalize(stmt);
     throw std::runtime_error("Failed to insert chunk metadata");
   }
-
   size_t chunkId = sqlite3_last_insert_rowid(db_);
   sqlite3_finalize(stmt);
   return chunkId;
@@ -242,14 +226,11 @@ std::optional<SearchResult> VectorDatabase::getChunkMetadata(size_t chunkId)
         SELECT content, source_id, chunk_type, start_pos, end_pos 
         FROM chunks WHERE id = ?
     )";
-
   sqlite3_stmt *stmt;
   sqlite3_prepare_v2(db_, selectSql, -1, &stmt, nullptr);
   sqlite3_bind_int64(stmt, 1, chunkId);
-
   SearchResult result;
   bool found = false;
-
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     result.content = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
     result.sourceId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
@@ -258,7 +239,6 @@ std::optional<SearchResult> VectorDatabase::getChunkMetadata(size_t chunkId)
     result.endPos = sqlite3_column_int64(stmt, 4);
     found = true;
   }
-
   sqlite3_finalize(stmt);
   return found ? std::optional<SearchResult>(result) : std::nullopt;
 }

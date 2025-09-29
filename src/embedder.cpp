@@ -18,11 +18,9 @@ void EmbeddingClient::parseUrl()
   if (protocolEnd == std::string::npos) {
     throw std::runtime_error("Invalid server URL format");
   }
-
   size_t hostStart = protocolEnd + 3;
   size_t port_start = serverUrl_.find(":", hostStart);
   size_t path_start = serverUrl_.find("/", hostStart);
-
   if (port_start != std::string::npos && port_start < path_start) {
     host_ = serverUrl_.substr(hostStart, port_start - hostStart);
     port_ = std::stoi(serverUrl_.substr(port_start + 1, path_start - port_start - 1));
@@ -49,36 +47,27 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
     httplib::Headers headers = {
         {"Content-Type", "application/json"}
     };
-
     auto res = client.Post(path_.c_str(), headers, bodyStr, "application/json");
-
     if (!res) {
       throw std::runtime_error("Failed to connect to embedding server");
     }
-
     if (res->status != 200) {
       throw std::runtime_error("Server returned error: " +
         std::to_string(res->status) + " - " + res->body);
     }
-
     nlohmann::json response = nlohmann::json::parse(res->body);
-
     if (!response.is_array() || response.size() != texts.size()) {
       throw std::runtime_error("Unexpected embedding response format");
     }
-
     const auto &item = response[0];
     if (!item.contains("embedding") || !item["embedding"].is_array()) {
       throw std::runtime_error("Missing or invalid 'embedding' field in response");
     }
-
     const auto &embeddingArray = item["embedding"];
     if (embeddingArray.empty() || !embeddingArray[0].is_array()) {
       throw std::runtime_error("Invalid embedding structure");
     }
-
     const auto &embeddingData = embeddingArray[0];
-
     for (const auto &value : embeddingData) {
       if (value.is_number()) {
         embedding.push_back(value.get<float>());
@@ -86,10 +75,8 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
         throw std::runtime_error("Non-numeric value in embedding data");
       }
     }
-
     //float l2Norm = calculateL2Norm(embedding);
     //std::cout << "[l2norm] " << l2Norm << std::endl;
-
   } catch (const nlohmann::json::exception &e) {
     std::cerr << "JSON parsing error: " << e.what() << std::endl;
     throw std::runtime_error("Failed to parse server response");

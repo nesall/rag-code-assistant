@@ -56,7 +56,7 @@ private:
 
 public:
   static std::string normalizeWhitespaces(const std::string &str);
-  static std::string cleanTextForEmbedding(const std::string &text, const std::string &EMBED_PREPEND_PHRASE = "");
+  //static std::string cleanTextForEmbedding(const std::string &text, const std::string &EMBED_PREPEND_PHRASE = "");
 };
 
 

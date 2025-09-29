@@ -40,12 +40,10 @@ App::~App()
 void App::embed()
 {
   std::cout << "Starting embedding process..." << std::endl;
-
   auto sources = imp->processor_->getSources();
   size_t totalChunks = 0;
   size_t totalFiles = 0;
   size_t totalTokens = 0;
-
   for (size_t i = 0; i < sources.size(); ++i) {
     const auto &[text, source] = sources[i];
     try {
@@ -142,14 +140,12 @@ void App::startServer(int port) {
   httplib::Server server;
   imp->serverRunning_ = true;
 
-  // Health check
   server.Get("/health", [](const httplib::Request &, httplib::Response &res) {
     json response = { {"status", "ok"} };
     res.set_content(response.dump(), "application/json");
     std::cout << "Health check OK" << std::endl;
     });
 
-  // Search endpoint
   server.Post("/search", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       std::cout << "Received /search request" << std::endl;
@@ -157,15 +153,11 @@ void App::startServer(int port) {
 
       std::string query = request["query"].get<std::string>();
       size_t top_k = request.value("top_k", 5);
-
-      // Generate query embedding
       std::vector<float> queryEmbedding;
       imp->embeddingClient_->generateEmbeddings({ query }, queryEmbedding);
 
-      // Search
       auto results = imp->db_->search(queryEmbedding, top_k);
 
-      // Format response
       json response = json::array();
       for (const auto &result : results) {
         response.push_back({
@@ -187,7 +179,7 @@ void App::startServer(int port) {
     }
     });
 
-  // Embed text endpoint (one-off embedding without storage)
+  // (one-off embedding without storage)
   server.Post("/embed", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       std::cout << "Received /embed request" << std::endl;
@@ -211,7 +203,6 @@ void App::startServer(int port) {
     }
     });
 
-  // Add document endpoint
   server.Post("/add", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       std::cout << "Received /add request" << std::endl;
@@ -220,10 +211,8 @@ void App::startServer(int port) {
       std::string content = request["content"].get<std::string>();
       std::string source_id = request["source_id"].get<std::string>();
 
-      // Chunk the content
       auto chunks = imp->chunker_->chunkText(content, source_id);
 
-      // Generate embeddings and insert
       size_t inserted = 0;
       for (const auto &chunk : chunks) {
         std::vector<float> embedding;
@@ -232,7 +221,6 @@ void App::startServer(int port) {
         inserted++;
       }
 
-      // Save index
       imp->db_->saveIndex();
 
       json response = {
@@ -249,7 +237,6 @@ void App::startServer(int port) {
     }
     });
 
-  // Stats endpoint
   server.Get("/stats", [this](const httplib::Request &, httplib::Response &res) {
     try {
       auto stats = imp->db_->getStats();
@@ -337,10 +324,8 @@ int App::run(int argc, char *argv[])
       printUsage();
       return 1;
     }
-
     std::string command = argv[1];
     std::string configPath = "settings.json";
-
     for (int i = 2; i < argc; ++i) {
       std::string arg = argv[i];
       if (arg == "--config" && i + 1 < argc) {
@@ -349,7 +334,7 @@ int App::run(int argc, char *argv[])
     }
 
     App app(configPath);
-
+    
     if (command == "embed") {
       app.embed();
     } else if (command == "search") {
@@ -385,7 +370,6 @@ int App::run(int argc, char *argv[])
       printUsage();
       return 1;
     }
-
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << "\n\n";
     printUsage();
