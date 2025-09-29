@@ -7,23 +7,24 @@
 #include "include/chunker.h"
 #include "include/embedder.h"
 #include "include/database.h"
+#include "include/sourceproc.h"
 #include "include/app.h"
 
 
 int main(int argc, char *argv[]) {
-    return EmbedderApp::run(argc, argv);
-
-#if 0
+#if 1
+    return App::run(argc, argv);
+#else
   try {
     Settings settings("settings.json");
     SourceProcessor processor(settings);
-    auto sources = processor.getAllSources();
+    auto sources = processor.getSources();
     // Now chunk, embed, and store each source
 
     EmbeddingClient embedder(settings.embeddingApiUrl());
     VectorDatabase db(settings.databaseSqlitePath(), settings.databaseIndexPath(), settings.databaseVectorDim());
-    SimpleTokenCounter tokenizer(settings.tokenizerPath());
-    Chunker chunker(tokenizer, settings.chunkingMinTokens(), settings.chunkingMaxTokens(), 0/*settings.chunkingOverlap()*/);
+    SimpleTokenCounter tokenizer(settings.tokenizerConfigPath());
+    Chunker chunker(tokenizer, settings.chunkingMinTokens(), settings.chunkingMaxTokens(), settings.chunkingOverlap());
 
     for (size_t i = 0; i < sources.size(); ++i) {
       const auto [text, source] = sources[i];

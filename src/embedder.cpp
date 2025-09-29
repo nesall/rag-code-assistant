@@ -6,7 +6,7 @@
 #include <nlohmann/json.hpp>
 
 
-EmbeddingClient::EmbeddingClient(const std::string &url, int timeout)
+EmbeddingClient::EmbeddingClient(const std::string &url, size_t timeout)
   : serverUrl_(url), timeoutMs_(timeout)
 {
   parseUrl();
@@ -61,8 +61,7 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
         std::to_string(res->status) + " - " + res->body);
     }
 
-    //nlohmann::json response = nlohmann::json::parse(res->body);
-    nlohmann::json response = nlohmann::json::parse(res->body, nullptr, false);
+    nlohmann::json response = nlohmann::json::parse(res->body);
 
     if (!response.is_array() || response.size() != texts.size()) {
       throw std::runtime_error("Unexpected embedding response format");
@@ -88,8 +87,8 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
       }
     }
 
-    float l2Norm = calculateL2Norm(embedding);
-    std::cout << "[l2norm] " << l2Norm << std::endl;
+    //float l2Norm = calculateL2Norm(embedding);
+    //std::cout << "[l2norm] " << l2Norm << std::endl;
 
   } catch (const nlohmann::json::exception &e) {
     std::cerr << "JSON parsing error: " << e.what() << std::endl;

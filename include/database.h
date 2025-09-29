@@ -1,23 +1,22 @@
 #pragma once
 
 #include <hnswlib/hnswlib.h>
+#include "chunker.h"
 #include <sqlite3.h>
 #include <vector>
 #include <string>
 #include <memory>
-#include <stdexcept>
 #include <optional>
-#include <filesystem>
-#include "chunker.h" // Defines Chunk
+
 
 struct SearchResult {
   std::string content;
   std::string sourceId;
   std::string chunkType;
-  size_t startPos;
-  size_t endPos;
-  float similarityScore;
-  size_t chunkId;
+  size_t startPos = 0;
+  size_t endPos = 0;
+  float similarityScore = 0;
+  size_t chunkId = 0;
 };
 
 class VectorDatabase {

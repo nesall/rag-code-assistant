@@ -1,11 +1,12 @@
 #include "database.h"
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
+#include <filesystem>
+#include <format>
 
-VectorDatabase::VectorDatabase(const std::string &dbPath, const std::string &indexPath,
-  size_t vectorDim, size_t maxElements)
-  : db_(nullptr), vectorDim_(vectorDim), maxElements_(maxElements),
-  currentCount_(0), dbPath_(dbPath), indexPath_(indexPath)
+VectorDatabase::VectorDatabase(const std::string &dbPath, const std::string &indexPath, size_t vectorDim, size_t maxElements)
+  : db_(nullptr), vectorDim_(vectorDim), maxElements_(maxElements), currentCount_(0), dbPath_(dbPath), indexPath_(indexPath)
 {
   initializeDatabase();
   initializeVectorIndex();
@@ -17,13 +18,11 @@ VectorDatabase::~VectorDatabase() {
   }
 }
 
-// ---- Insert ----
 size_t VectorDatabase::insertChunk(const Chunk &chunk, const std::vector<float> &embedding)
 {
   if (embedding.size() != vectorDim_) {
-    throw std::runtime_error("Embedding dimension mismatch");
+    throw std::runtime_error(std::format("Embedding dimension mismatch: actual {}, claimed {}", embedding.size(), vectorDim_));
   }
-
   size_t chunkId = insertMetadata(chunk);
   index_->addPoint(embedding.data(), chunkId);
   currentCount_++;
@@ -57,7 +56,7 @@ std::vector<size_t> VectorDatabase::insertChunks(const std::vector<Chunk> &chunk
 std::vector<SearchResult> VectorDatabase::search(const std::vector<float> &queryEmbedding, size_t topK)
 {
   if (queryEmbedding.size() != vectorDim_) {
-    throw std::runtime_error("Query embedding dimension mismatch");
+    throw std::runtime_error(std::format("Query embedding dimension mismatch: actual {}, claimed {}", queryEmbedding.size(), vectorDim_));
   }
 
   if (currentCount_ == 0) {

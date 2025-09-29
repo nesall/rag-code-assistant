@@ -4,12 +4,12 @@
 #include <string>
 
 
-class EmbedderApp {
+class App {
   struct Impl;
   std::unique_ptr<Impl> imp;
 public:
-  explicit EmbedderApp(const std::string &configPath);
-  ~EmbedderApp();
+  explicit App(const std::string &configPath);
+  ~App();
 
   // CLI commands
   void embed();
@@ -25,7 +25,6 @@ public:
   static int run(int argc, char *argv[]);
 
 private:
-  void loadConfig(const std::string &path);
   void initialize();
   //std::vector<Source> getSources();
   //std::vector<Source> processDirectory(const json &source);
