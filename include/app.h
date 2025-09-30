@@ -16,6 +16,7 @@ public:
   void watch(int interval_seconds = 60);
   bool update();
   //void rebuild();
+  void compact();
   void search(const std::string &query, size_t topK = 5);
   void stats();
   void clear();

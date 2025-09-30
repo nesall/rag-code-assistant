@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <filesystem>
+#include <unordered_set>
 #include <format>
 
 
@@ -15,12 +16,11 @@ struct HnswSqliteVectorDatabase::Impl {
 
   size_t vectorDim_ = 0;
   size_t maxElements_ = 0;
-  size_t currentCount_ = 0;
+  size_t currentCount_ = 0; // TOREMOVE: use index_->getCurrentElementCount()
   std::string dbPath_;
   std::string indexPath_;
-
-
 };
+
 
 HnswSqliteVectorDatabase::HnswSqliteVectorDatabase(const std::string &dbPath, const std::string &indexPath, size_t vectorDim, size_t maxElements)
   : imp(new Impl)
@@ -85,8 +85,7 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
   std::vector<SearchResult> searchResults;
   while (!result.empty()) {
     auto [distance, label] = result.top();
-    result.pop();
-
+    result.pop();    
     float similarity = 1.0f / (1.0f + distance);
     auto chunkData = getChunkMetadata(label);
     if (chunkData.has_value()) {
@@ -127,8 +126,12 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::searchWithFilter(const std::
 void HnswSqliteVectorDatabase::clear()
 {
   executeSql("DELETE FROM chunks");
+  executeSql("DELETE FROM files_metadata");
+  // Just recreate index - simpler than unmarking everything
   imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
-  imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->maxElements_);
+  imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+    imp->space_.get(), imp->maxElements_, 16, 200, 42, true
+  );
   imp->currentCount_ = 0;
 }
 
@@ -168,16 +171,16 @@ void HnswSqliteVectorDatabase::initializeVectorIndex()
   imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
   if (std::filesystem::exists(imp->indexPath_)) {
     try {
-      imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->indexPath_);
+      imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->indexPath_, false, imp->maxElements_, true);
       imp->currentCount_ = imp->index_->getCurrentElementCount();
-      std::cout << "Loaded existing index with " << imp->currentCount_ << " vectors" << std::endl;
+      std::cout << "Loaded index with " << imp->currentCount_ << " total vectors, " << imp->index_->getDeletedCount() << " deleted" << std::endl;
       return;
     } catch (const std::exception &e) {
       std::cerr << "Failed to load existing index: " << e.what() << std::endl;
       std::cerr << "Creating new index..." << std::endl;
     }
   }
-  imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->maxElements_);
+  imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->maxElements_, 16, 200, 42, true);
   imp->currentCount_ = 0;
 }
 
@@ -241,26 +244,42 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
   return found ? std::optional<SearchResult>(result) : std::nullopt;
 }
 
-size_t HnswSqliteVectorDatabase::deleteDocumentsBySource(const std::string &sourceId)
+std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::string &sourceId)
 {
+  std::vector<size_t> ids;
   sqlite3_stmt *stmt;
-  const char *sql = "DELETE FROM chunks WHERE source_id = ?";
+  const char *sql = "SELECT id FROM chunks WHERE source_id = ?";
   sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
-
   sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
-
-  int result = sqlite3_step(stmt);
-  size_t n = sqlite3_changes(imp->db_);
-
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    ids.push_back(sqlite3_column_int64(stmt, 0));
+  }
   sqlite3_finalize(stmt);
-  sqlite3_close(imp->db_);
-
-  return n;
-  // Note: Vector index still contains these vectors
-  // They become "dangling" - queries won't fail but waste space
-  // Solution: Mark as deleted or rebuild index periodically
+  return ids;
 }
 
+size_t HnswSqliteVectorDatabase::deleteDocumentsBySource(const std::string &sourceId)
+{
+  auto chunkIds = getChunkIdsBySource(sourceId);
+  if (chunkIds.empty()) return 0;
+  try {
+    sqlite3_stmt *stmt;
+    const char *sql = "DELETE FROM chunks WHERE source_id = ?";
+    sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+    sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
+    int result = sqlite3_step(stmt);
+    size_t n = sqlite3_changes(imp->db_);
+    sqlite3_finalize(stmt);
+    sqlite3_close(imp->db_);
+    for (size_t id : chunkIds) {
+      imp->index_->markDelete(id);
+    }
+    return n;
+  } catch (...) {
+    rollback();
+    throw;
+  }
+}
 
 void HnswSqliteVectorDatabase::removeFileMetadata(const std::string &filepath)
 {
@@ -305,6 +324,8 @@ DatabaseStats HnswSqliteVectorDatabase::getStats() const
 {
   DatabaseStats stats;
   stats.vectorCount = imp->currentCount_;
+  stats.deletedCount = imp->index_->getDeletedCount();
+  stats.activeCount = imp->index_->getCurrentElementCount() - imp->index_->getDeletedCount();
   sqlite3_stmt *stmt;
   sqlite3_prepare_v2(imp->db_, "SELECT COUNT(*) FROM chunks", -1, &stmt, nullptr);
   if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -337,4 +358,50 @@ std::string HnswSqliteVectorDatabase::dbPath() const
 std::string HnswSqliteVectorDatabase::indexPath() const
 {
   return imp->indexPath_;
+}
+
+void HnswSqliteVectorDatabase::compactIndex()
+{
+  size_t deleted_count = imp->index_->getDeletedCount();
+
+  if (deleted_count == 0) {
+    std::cout << "No deleted items to compact." << std::endl;
+    return;
+  }
+
+  std::cout << "Compacting index (" << deleted_count << " deleted items)..." << std::endl;
+
+  // Get all active chunks
+  std::vector<std::pair<size_t, std::vector<float>>> activeItems;
+
+  sqlite3_stmt *stmt;
+  const char *sql = "SELECT id FROM chunks";
+  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    size_t chunkId = sqlite3_column_int64(stmt, 0);
+    if (!imp->index_->isMarkedDeleted(chunkId)) {
+      auto embedding = imp->index_->getDataByLabel<float>(chunkId);
+      activeItems.emplace_back(chunkId, std::move(embedding));
+    }
+  }
+  sqlite3_finalize(stmt);
+
+  // Create new index
+  auto new_space = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
+  auto new_index = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+    new_space.get(), imp->maxElements_, 16, 200, 42, true
+  );
+
+  // Add all active items
+  for (const auto &[id, embedding] : activeItems) {
+    new_index->addPoint(embedding.data(), id);
+  }
+
+  // Replace old index
+  imp->space_ = std::move(new_space);
+  imp->index_ = std::move(new_index);
+  imp->currentCount_ = activeItems.size();
+
+  std::cout << "Compaction complete. Active items: " << imp->currentCount_ << std::endl;
 }

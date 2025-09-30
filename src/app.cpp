@@ -291,6 +291,14 @@ void App::embed()
   std::cout << "  Total tokens: " << totalTokens << std::endl;
 }
 
+void App::compact()
+{
+  std::cout << "Compacting vector index..." << std::endl;
+  imp->db_->compact();
+  imp->db_->persist();
+  std::cout << "Done!" << std::endl;
+}
+
 void App::search(const std::string &query, size_t topK)
 {
   std::cout << "Searching for: " << query << std::endl;
@@ -576,6 +584,7 @@ void App::printUsage()
   std::cout << "  search <query>     - Search for similar chunks\n";
   std::cout << "  stats              - Show database statistics\n";
   std::cout << "  clear              - Clear all data\n";
+  std::cout << "  compact            - Reclaim deleted space\n";
   std::cout << "  serve [port]       - Start HTTP API server (default: 8081)\n";
   std::cout << "\nOptions:\n";
   std::cout << "  --config <path>    - Config file path (default: settings.json)\n";
@@ -634,6 +643,8 @@ int App::run(int argc, char *argv[])
       app.stats();
     } else if (command == "clear") {
       app.clear();
+    } else if (command == "compact") {
+      app.compact();
     } else if (command == "serve") {
       int port = 8081;
       if (argc > 2) {

@@ -29,6 +29,8 @@ struct FileMetadata {
 struct DatabaseStats {
   size_t totalChunks = 0;
   size_t vectorCount = 0;
+  size_t deletedCount = 0;
+  size_t activeCount = 0;
   size_t totalTokens = 0;
   std::vector<std::pair<std::string, size_t>> sources;
 };
@@ -56,6 +58,7 @@ public:
 
   virtual DatabaseStats getStats() const = 0;
   virtual void persist() = 0;
+  virtual void compact() {}
 
   virtual void beginTransaction() = 0;
   virtual void commit() = 0;
@@ -88,6 +91,7 @@ public:
   void rollback() override { executeSql("ROLLBACK"); }
 
   void persist() override;
+  void compact() override { compactIndex(); }
 
 private:
   std::string dbPath() const;
@@ -102,4 +106,6 @@ private:
   void executeSql(const std::string &sql);
   size_t insertMetadata(const Chunk &chunk);
   std::optional<SearchResult> getChunkMetadata(size_t chunkId);
+  std::vector<size_t> getChunkIdsBySource(const std::string &sourceId);
+  void compactIndex();
 };
