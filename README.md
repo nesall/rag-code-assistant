@@ -24,13 +24,10 @@ Check for changes and update only what changed
 Continuous monitoring (checks every 60 seconds)  
 ```./embedder watch 60```
 
-Or custom interval  
-```./embedder watch 30  # Check every 30 seconds```
-
-Delete files (instant)  
+Detect file changes and update accordingly  
 ```./embedder update```
 
-After many deletions, reclaim space  
+Reclaim space used by deleted index items  
 ```./embedder compact```
 
 Search nearest neighbours  
