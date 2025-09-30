@@ -16,7 +16,6 @@ struct HnswSqliteVectorDatabase::Impl {
 
   size_t vectorDim_ = 0;
   size_t maxElements_ = 0;
-  size_t currentCount_ = 0; // TOREMOVE: use index_->getCurrentElementCount()
   std::string dbPath_;
   std::string indexPath_;
 };
@@ -47,7 +46,6 @@ size_t HnswSqliteVectorDatabase::addDocument(const Chunk &chunk, const std::vect
   }
   size_t chunkId = insertMetadata(chunk);
   imp->index_->addPoint(embedding.data(), chunkId);
-  imp->currentCount_++;
   return chunkId;
 }
 
@@ -78,7 +76,7 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
   if (queryEmbedding.size() != imp->vectorDim_) {
     throw std::runtime_error(std::format("Query embedding dimension mismatch: actual {}, claimed {}", queryEmbedding.size(), imp->vectorDim_));
   }
-  if (imp->currentCount_ == 0) {
+  if (imp->index_->getCurrentElementCount() == 0) {
     return {};
   }
   auto result = imp->index_->searchKnn(queryEmbedding.data(), topK);
@@ -132,7 +130,6 @@ void HnswSqliteVectorDatabase::clear()
   imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(
     imp->space_.get(), imp->maxElements_, 16, 200, 42, true
   );
-  imp->currentCount_ = 0;
 }
 
 void HnswSqliteVectorDatabase::initializeDatabase()
@@ -172,8 +169,7 @@ void HnswSqliteVectorDatabase::initializeVectorIndex()
   if (std::filesystem::exists(imp->indexPath_)) {
     try {
       imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->indexPath_, false, imp->maxElements_, true);
-      imp->currentCount_ = imp->index_->getCurrentElementCount();
-      std::cout << "Loaded index with " << imp->currentCount_ << " total vectors, " << imp->index_->getDeletedCount() << " deleted" << std::endl;
+      std::cout << "Loaded index with " << imp->index_->getCurrentElementCount() << " total vectors, " << imp->index_->getDeletedCount() << " deleted" << std::endl;
       return;
     } catch (const std::exception &e) {
       std::cerr << "Failed to load existing index: " << e.what() << std::endl;
@@ -181,7 +177,6 @@ void HnswSqliteVectorDatabase::initializeVectorIndex()
     }
   }
   imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->maxElements_, 16, 200, 42, true);
-  imp->currentCount_ = 0;
 }
 
 void HnswSqliteVectorDatabase::executeSql(const std::string &sql)
@@ -323,7 +318,7 @@ std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
 DatabaseStats HnswSqliteVectorDatabase::getStats() const
 {
   DatabaseStats stats;
-  stats.vectorCount = imp->currentCount_;
+  stats.vectorCount = imp->index_->getCurrentElementCount();
   stats.deletedCount = imp->index_->getDeletedCount();
   stats.activeCount = imp->index_->getCurrentElementCount() - imp->index_->getDeletedCount();
   sqlite3_stmt *stmt;
@@ -344,9 +339,9 @@ DatabaseStats HnswSqliteVectorDatabase::getStats() const
 
 void HnswSqliteVectorDatabase::persist()
 {
-  if (imp->currentCount_ > 0) {
+  if (imp->index_->getCurrentElementCount() > 0) {
     imp->index_->saveIndex(imp->indexPath_);
-    std::cout << "Saved vector index with " << imp->currentCount_ << " vectors" << std::endl;
+    std::cout << "Saved vector index with " << imp->index_->getCurrentElementCount() << " vectors" << std::endl;
   }
 }
 
@@ -401,7 +396,6 @@ void HnswSqliteVectorDatabase::compactIndex()
   // Replace old index
   imp->space_ = std::move(new_space);
   imp->index_ = std::move(new_index);
-  imp->currentCount_ = activeItems.size();
 
-  std::cout << "Compaction complete. Active items: " << imp->currentCount_ << std::endl;
+  std::cout << "Compaction complete. Active items: " << imp->index_->getCurrentElementCount() << std::endl;
 }

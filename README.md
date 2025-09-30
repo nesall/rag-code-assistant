@@ -12,6 +12,16 @@ cmake ...
 make
 ```
 
+### Features overview
+
+* Lightweight tokenization  
+* Smart chunking with overlap  
+* Local embeddings (llama-server + any choice of embedding model)  
+* Fast vector search (Hnswlib with proper deletion)  
+* Metadata storage (SQLite)  
+* Incremental updates
+* CLI + HTTP API  
+
 
 ### CLI commands
 
