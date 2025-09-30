@@ -24,9 +24,6 @@ Check for changes and update only what changed
 Continuous monitoring (checks every 60 seconds)  
 ```./embedder watch 60```
 
-Detect file changes and update accordingly  
-```./embedder update```
-
 Reclaim space used by deleted index items  
 ```./embedder compact```
 
