@@ -9,15 +9,15 @@
 
 
 struct Chunk {
-  std::string docId;
+  std::string docUri;
   std::string chunkId;
   std::string text;
   std::string raw;
   struct {
     size_t tokenCount;
-    size_t startChar;
-    size_t endChar;
-    std::string source;
+    size_t start;
+    size_t end;
+    std::string unit;
   } metadata;
 };
 
@@ -44,10 +44,10 @@ private:
 public:
   Chunker(SimpleTokenCounter &tok, size_t minTok = 50, size_t maxTok = 500, float overlap = 0.1f);
 
-  std::vector<Chunk> chunkText(const std::string &text, const std::string &sourceId = "", bool semantic = true);
+  std::vector<Chunk> chunkText(const std::string &text, const std::string &uri = "", bool semantic = true);
 
 private:
-  std::string detectContentType(const std::string &text, const std::string &sourceId);
+  std::string detectContentType(const std::string &text, const std::string &uri);
   std::vector<Chunk> postProcessChunks(std::vector<Chunk> &chunks);
   size_t tokenCount(const std::string &text);
   std::vector<Chunk> splitIntoChunksAdv(std::string text, const std::string &docId);

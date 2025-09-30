@@ -74,27 +74,27 @@ Chunker::Chunker(SimpleTokenCounter &tok, size_t min_tok, size_t max_tok, float 
 #endif
 }
 
-std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string &sourceId, bool semantic)
+std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string &uri, bool semantic)
 {
   std::vector<Chunk> chunks;
-  std::string chunkType = detectContentType(text, sourceId);
+  std::string chunkType = detectContentType(text, uri);
   if (chunkType == "code") {
-    chunks = splitIntoLineChunks(text, sourceId);
+    chunks = splitIntoLineChunks(text, uri);
   } else {
-    chunks = splitIntoChunksAdv(text, sourceId);
+    chunks = splitIntoChunksAdv(text, uri);
   }
   return postProcessChunks(chunks);
 }
 
-std::string Chunker::detectContentType(const std::string &text, const std::string &sourceId)
+std::string Chunker::detectContentType(const std::string &text, const std::string &uri)
 {
-  if (sourceId.ends_with(".cpp") || sourceId.ends_with(".h") ||
-    sourceId.ends_with(".hpp") || sourceId.ends_with(".c") ||
-    sourceId.ends_with(".py") || sourceId.ends_with(".js") ||
-    sourceId.ends_with(".java") || sourceId.ends_with(".cs")) {
+  if (uri.ends_with(".cpp") || uri.ends_with(".h") ||
+    uri.ends_with(".hpp") || uri.ends_with(".c") ||
+    uri.ends_with(".py") || uri.ends_with(".js") ||
+    uri.ends_with(".java") || uri.ends_with(".cs")) {
     return "code";
   }
-  if (sourceId.ends_with(".md") || sourceId.ends_with(".txt")) {
+  if (uri.ends_with(".md") || uri.ends_with(".txt")) {
     return "text";
   }
   size_t code_indicators = 0, total_lines = 0;
@@ -131,10 +131,10 @@ std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks)
     if (chunk.metadata.tokenCount < minTokens_ && i + 1 < chunks.size()) {
       Chunk &next_chunk = chunks[i + 1];
       size_t combined_tokens = tokenCount(chunk.text + next_chunk.text);
-      if (combined_tokens <= maxTokens_ && chunk.docId == next_chunk.docId) {
+      if (combined_tokens <= maxTokens_ && chunk.docUri == next_chunk.docUri) {
         chunk.text += next_chunk.text;
         chunk.metadata.tokenCount = combined_tokens;
-        chunk.metadata.endChar = next_chunk.metadata.endChar;
+        chunk.metadata.end = next_chunk.metadata.end;
         ++i;
       }
     }
@@ -154,7 +154,7 @@ size_t Chunker::tokenCount(const std::string &text)
   return count;
 }
 
-std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::string &docId)
+std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::string &uri)
 {
   auto overlap = overlapTokens_;
   if (maxTokens_ * 0.6 < overlap) overlap = static_cast<size_t>(maxTokens_ * 0.6);
@@ -186,11 +186,11 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
       for (size_t i = start; i < end; i++) chunkText += units[i].text;
       size_t tokensToCheck = tokenCount(raw);
       chunks.push_back({
-          docId,
-          docId + "_" + std::to_string(chunkId++),
+          uri,
+          uri + "_" + std::to_string(chunkId++),
           chunkText,
           raw,
-          {tokenCnt, startChar, endChar, docId}
+          {tokenCnt, startChar, endChar, "char"}
         });
     }
     if (end >= units.size()) break;
@@ -209,7 +209,7 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
   return chunks;
 }
 
-std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const std::string &docId)
+std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const std::string &uri)
 {
   std::vector<Chunk> chunks;
   std::vector<std::string> lines;
@@ -238,11 +238,11 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
     if (start < end) {
       std::string raw = text.substr(start, end - start);
       chunks.push_back({
-          docId,
-          docId + "_" + std::to_string(chunkId++),
+          uri,
+          uri + "_" + std::to_string(chunkId++),
           chunkText,
           raw,
-          {tokenCnt, start, end, docId}
+          {tokenCnt, start, end, "line"}
         });
     }
     if (lines.size() <= end) break;

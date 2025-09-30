@@ -73,7 +73,7 @@ void SourceProcessor::processFile(const std::string &filepath, std::vector<Sourc
   if (file.is_open()) {
     std::stringstream buffer;
     buffer << file.rdbuf();
-    content.push_back({ buffer.str(), filepath });
+    content.push_back({ buffer.str(), std::filesystem::path(filepath).lexically_normal().generic_string() });
   } else {
     std::cout << "Unable to process resource " << filepath << ". Skipped.\n";
   }

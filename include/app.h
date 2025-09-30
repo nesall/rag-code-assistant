@@ -13,6 +13,9 @@ public:
 
   // CLI commands
   void embed();
+  void watch(int interval_seconds = 60);
+  bool update();
+  //void rebuild();
   void search(const std::string &query, size_t topK = 5);
   void stats();
   void clear();
@@ -29,6 +32,6 @@ private:
   //std::vector<Source> getSources();
   //std::vector<Source> processDirectory(const json &source);
   //std::string readFile(const std::string &path);
-
+  std::string currentTimestamp();
 
 };
