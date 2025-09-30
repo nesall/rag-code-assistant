@@ -1,6 +1,6 @@
 {
   "tokenizer": {
-    "config_path": "C:/users/arman/workspace/projects/embedder_cpp/bge_tokenizer.json"
+    "config_path": "bge_tokenizer.json"
   },
   "embedding": {
     "api_url": "http://127.0.0.1:8583/embedding",
@@ -25,7 +25,7 @@
   "sources": [
     {
       "type": "directory",
-      "path": "c:/users/arman/workspace/projects/embedder_cpp/src",
+      "path": "embedder_cpp/src",
       "recursive": true,
       "extensions": [".cpp", ".h", ".hpp"],
       "exclude": ["*/build/*", "*/test/*"]
