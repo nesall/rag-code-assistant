@@ -63,5 +63,16 @@ curl -X POST http://localhost:8081/add \
 
 # Get stats
 curl http://localhost:8081/stats
+
+# Chat completions
+curl -N -X POST http://localhost:8081/chat   -H "Content-Type: application/json"   -d '{
+    "model": "",
+    "messages": [
+      {"role": "system", "content": "Keep it short."},
+      {"role": "user", "content": "How to get all the chunks from index database?"}
+    ],
+    "temperature": 0.7
+  }'
+
 ```
 

@@ -1,4 +1,4 @@
-#include "embedder.h"
+#include "inference.h"
 #include "database.h"
 #include <stdexcept>
 #include <iostream>
@@ -228,7 +228,7 @@ std::string CompletionClient::generateCompletion(
   );
 
   if (!res) {
-    throw std::runtime_error("Failed to connect to embedding server");
+    throw std::runtime_error("Failed to connect to completion server");
   }
 
   if (res->status != 200) {

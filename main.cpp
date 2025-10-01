@@ -5,7 +5,7 @@
 #include "include/settings.h"
 #include "include/tokenizer.h"
 #include "include/chunker.h"
-#include "include/embedder.h"
+#include "include/inference.h"
 #include "include/database.h"
 #include "include/sourceproc.h"
 #include "include/app.h"

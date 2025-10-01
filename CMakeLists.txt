@@ -47,7 +47,7 @@ add_executable(${PROJECT_NAME}
   include/tokenizer.h
   include/settings.h
   include/chunker.h
-  include/embedder.h
+  include/inference.h
   include/database.h
   include/sourceproc.h
   include/httpserver.h
@@ -55,7 +55,7 @@ add_executable(${PROJECT_NAME}
   src/tokenizer.cpp
   src/settings.cpp
   src/chunker.cpp
-  src/embedder.cpp
+  src/inference.cpp
   src/database.cpp
   src/sourceproc.cpp
   src/httpserver.cpp

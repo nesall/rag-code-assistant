@@ -1,7 +1,7 @@
 #include "httpserver.h"
 #include "chunker.h"
 #include "database.h"
-#include "embedder.h"
+#include "inference.h"
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
@@ -159,7 +159,7 @@ bool HttpServer::startServer(int port)
   server.Post("/chat", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       json request = json::parse(req.body);
-      float temperature = request.value("temperature", 0.5);
+      float temperature = request.value("temperature", 0.5f);
       // format for messages field in request
       /*
         "messages": [

@@ -1,7 +1,7 @@
 #include "app.h"
 #include "settings.h"
 #include "database.h"
-#include "embedder.h"
+#include "inference.h"
 #include "chunker.h"
 #include "tokenizer.h"
 #include "sourceproc.h"
@@ -356,6 +356,38 @@ void App::clear()
   }
 }
 
+void App::chat()
+{
+  std::cout << "Entering chat mode. Type 'exit' to quit." << std::endl;
+  std::vector<json> messages;
+  messages.push_back({ {"role", "system"}, {"content", "You are a helpful assistant."} });
+  while (true) {
+    try {
+      std::cout << "\nYou: ";
+      std::string userInput;
+      std::getline(std::cin, userInput);
+      if (userInput == "exit") break;
+      messages.push_back({ {"role", "user"}, {"content", userInput} });
+      // Generate embedding for the user input
+      std::vector<float> queryEmbedding;
+      imp->embeddingClient_->generateEmbeddings({ userInput }, queryEmbedding);
+      auto searchResults = imp->db_->search(queryEmbedding, 5);
+      std::cout << "\nAssistant: " << std::flush;
+      std::string assistantResponse = imp->completionClient_->generateCompletion(
+        messages, searchResults, 0.5,
+        [](const std::string &chunk) {
+          std::cout << chunk << std::flush;
+        }
+      );
+      std::cout << std::endl;
+      messages.push_back({ {"role", "assistant"}, {"content", assistantResponse} });
+    } catch (const std::exception &e) {
+      std::cout << "Error: " << e.what() << "\n";
+    }
+  }
+  std::cout << "Exiting chat mode." << std::endl;
+}
+
 void App::serve(int port)
 {
   imp->httpServer_->startServer(port);
@@ -455,6 +487,7 @@ void App::printUsage()
   std::cout << "  stats              - Show database statistics\n";
   std::cout << "  clear              - Clear all data\n";
   std::cout << "  compact            - Reclaim deleted space\n";
+  std::cout << "  chat               - Chat mode\n";
   std::cout << "  serve [port]       - Start HTTP API server (default: 8081)\n";
   std::cout << "\nOptions:\n";
   std::cout << "  --config <path>    - Config file path (default: settings.json)\n";
@@ -515,6 +548,8 @@ int App::run(int argc, char *argv[])
       app.clear();
     } else if (command == "compact") {
       app.compact();
+    } else if (command == "chat") {
+      app.chat();
     } else if (command == "serve") {
       int port = 8081;
       if (argc > 2) {
