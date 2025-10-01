@@ -31,9 +31,11 @@ public:
   float chunkingOverlap() const { return config_["chunking"]["overlap_percentage"]; }
   bool chunkingSemantic() const { return config_["chunking"]["semantic"]; }
   std::string embeddingApiUrl() const { return config_["embedding"]["api_url"]; }
+  std::string embeddingApiKey() const { return config_["embedding"]["api_key"]; }
   size_t embeddingTimeoutMs() const { return config_["embedding"]["timeout_ms"]; }
   size_t embeddingBatchSize() const { return config_["embedding"]["batch_size"]; }
   std::string generationApiUrl() const { return config_["generation"]["api_url"]; }
+  std::string generationApiKey() const { return config_["generation"]["api_key"]; }
   size_t generationTimeoutMs() const { return config_["generation"]["timeout_ms"]; }
   std::string databaseSqlitePath() const { return config_["database"]["sqlite_path"]; }
   std::string databaseIndexPath() const { return config_["database"]["index_path"]; }

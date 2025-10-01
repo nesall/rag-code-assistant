@@ -6,8 +6,8 @@
 #include <httplib.h>
 
 
-InferenceClient::InferenceClient(const std::string &url, size_t timeout)
-  : serverUrl_(url), timeoutMs_(timeout)
+InferenceClient::InferenceClient(const std::string &url, const std::string &apiKey, size_t timeout)
+  : apiKey_(apiKey), serverUrl_(url), timeoutMs_(timeout)
 {
   parseUrl();
 }
@@ -36,7 +36,8 @@ void InferenceClient::parseUrl()
 //---------------------------------------------------------------------------
 
 
-EmbeddingClient::EmbeddingClient(const std::string &url, size_t timeout) : InferenceClient(url, timeout)
+EmbeddingClient::EmbeddingClient(const std::string &url, const std::string &apiKey, size_t timeout)
+  : InferenceClient(url, apiKey, timeout)
 {
 }
 
@@ -53,7 +54,8 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
     std::string bodyStr = requestBody.dump();
 
     httplib::Headers headers = {
-        {"Content-Type", "application/json"}
+      {"Content-Type", "application/json"},
+      {"Authorization", "Bearer " + apiKey_}
     };
     auto res = client.Post(path_.c_str(), headers, bodyStr, "application/json");
     if (!res) {
@@ -124,11 +126,13 @@ namespace {
   Context:
   __CONTEXT__
 
+  Question:
   __QUESTION__
   )" };
 } // anonymous namespace
 
-CompletionClient::CompletionClient(const std::string &url, size_t timeout) : InferenceClient(url, timeout)
+CompletionClient::CompletionClient(const std::string &url, const std::string &apiKey, size_t timeout)
+  : InferenceClient(url, apiKey, timeout)
 {
 }
 
@@ -177,13 +181,14 @@ std::string CompletionClient::generateCompletion(
   //std::cout << "Full context: " << modifiedMessages.dump() << "\n";
 
   nlohmann::json requestBody;
-  requestBody["model"] = "";
+  requestBody["model"] = "gpt-3.5-turbo-instruct";
   requestBody["messages"] = modifiedMessages;
   requestBody["temperature"] = temperature;
   requestBody["stream"] = true;
 
   httplib::Headers headers = {
-      {"Content-Type", "application/json"}
+    {"Accept", "text/event-stream"},
+    {"Authorization", "Bearer " + apiKey_}
   };
 
   std::string fullResponse;
@@ -232,7 +237,7 @@ std::string CompletionClient::generateCompletion(
   }
 
   if (res->status != 200) {
-    throw std::runtime_error("Server returned error: " + std::to_string(res->status) + " - " + res->body);
+    throw std::runtime_error("Server returned error: " + std::to_string(res->status) + " " + res->reason + " - " + res->body);
   }
 
   return fullResponse;

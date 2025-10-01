@@ -5,8 +5,28 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <cassert>
+#include <thread>
+#include <format>
 
 using json = nlohmann::json;
+
+
+
+//auto testStreaming = [](std::function<void(const std::string &)> onChunk)
+//  {
+//    for (int i = 0; i < 25; ++i) {
+//      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+//      std::ostringstream oss;
+//      oss << "thread ";
+//      oss << std::this_thread::get_id();
+//      oss << ", chunk ";
+//      oss << std::to_string(i);
+//      oss << "\n\n";
+//      onChunk(oss.str());
+//    }
+//  };
+
+
 
 struct HttpServer::Impl {
   Impl(Chunker &c, VectorDatabase &d, EmbeddingClient &e, CompletionClient  &g)
@@ -20,11 +40,16 @@ struct HttpServer::Impl {
   VectorDatabase &db_;
   EmbeddingClient &embeddingClient_;
   CompletionClient &completionClient_;
+
+  static int counter_;
 };
+
+int HttpServer::Impl::counter_ = 0;
 
 HttpServer::HttpServer(Chunker &c, VectorDatabase &d, EmbeddingClient &e, CompletionClient &g) 
   : imp(new Impl(c, d, e, g))
 {
+  //imp->server_.new_task_queue = [] { return new httplib::ThreadPool(4); };
 }
 
 HttpServer::~HttpServer()
@@ -149,6 +174,10 @@ bool HttpServer::startServer(int port)
 
       res.set_content(response.dump(), "application/json");
 
+      std::cout << std::this_thread::get_id() << " Starting /stats ...\n";
+      std::this_thread::sleep_for(std::chrono::seconds(20));
+      std::cout << std::this_thread::get_id() << " Finished /stats !\n";
+
     } catch (const std::exception &e) {
       json error = { {"error", e.what()} };
       res.status = 500;
@@ -187,6 +216,7 @@ bool HttpServer::startServer(int port)
       res.set_chunked_content_provider(
         "text/event-stream",
         [this, messagesJson, results, temperature](size_t offset, httplib::DataSink &sink) {
+          std::cout << "set_chunked_content_provider: in callback ...\n";
           try {
             std::string context = imp->completionClient_.generateCompletion(
               messagesJson, results, temperature,
@@ -201,6 +231,13 @@ bool HttpServer::startServer(int port)
                   return; // Client disconnected
                 }
               });
+
+            //testStreaming([&sink](const std::string &chunk) {
+            //  if (!sink.write(chunk.data(), chunk.size())) {
+            //    return; // client disconnected
+            //  }
+            //  });
+
             std::string done = "data: [DONE]\n\n";
             sink.write(done.data(), done.size());
             sink.done();
@@ -209,6 +246,7 @@ bool HttpServer::startServer(int port)
             sink.write(error.data(), error.size());
             sink.done();
           }
+          std::cout << "set_chunked_content_provider: callback DONE.\n";
           return true;
         }
       );

@@ -9,9 +9,10 @@ struct SearchResult;
 
 class InferenceClient {
 public:
-  InferenceClient(const std::string &url, size_t timeout = 30000);
+  InferenceClient(const std::string &url, const std::string &apiKey, size_t timeout = 30000);
 
 protected:
+  std::string apiKey_;
   std::string serverUrl_;
   std::string host_;
   std::string path_;
@@ -23,7 +24,7 @@ protected:
 
 class EmbeddingClient : public InferenceClient {
 public:
-  EmbeddingClient(const std::string &url, size_t timeout = 30000);
+  EmbeddingClient(const std::string &url, const std::string &apiKey, size_t timeout = 30000);
   void generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding);
   std::vector<std::vector<float>> generateBatchEmbeddings(const std::vector<std::string> &texts);
 
@@ -33,7 +34,7 @@ private:
 
 class CompletionClient : public InferenceClient {
 public:
-  CompletionClient(const std::string &url, size_t timeout = 30000);
+  CompletionClient(const std::string &url, const std::string &apiKey, size_t timeout = 30000);
   std::string generateCompletion(
     const nlohmann::json &messages, 
     const std::vector<SearchResult> &searchRes, 

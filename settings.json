@@ -12,7 +12,7 @@
   "generation": {
     "api_url": "http://127.0.0.1:8585/v1/chat/completions",
     "api_key": "${OPENAI_API_KEY}",
-    "timeout_ms": 30000
+    "timeout_ms": 60000
   },
   "database": {
     "sqlite_path": "db_metadata.db",

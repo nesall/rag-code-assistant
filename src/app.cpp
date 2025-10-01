@@ -249,6 +249,32 @@ App::~App()
   imp->httpServer_->stop();
 }
 
+void App::initialize()
+{
+  auto &ss = *imp->settings_;
+  std::string dbPath = ss.databaseSqlitePath();
+  std::string indexPath = ss.databaseIndexPath();
+  size_t vectorDim = ss.databaseVectorDim();
+  size_t maxElements = ss.databaseMaxElements();
+
+  imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements);
+
+  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(ss.embeddingApiUrl(), ss.embeddingApiKey(), ss.embeddingTimeoutMs());
+  imp->completionClient_ = std::make_unique<CompletionClient>(ss.generationApiUrl(), ss.generationApiKey(), ss.generationTimeoutMs());
+
+  imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(ss.tokenizerConfigPath());
+
+  size_t minTokens = ss.chunkingMinTokens();
+  size_t maxTokens = ss.chunkingMaxTokens();
+  float overlap = ss.chunkingOverlap();
+
+  imp->chunker_ = std::make_unique<Chunker>(*imp->tokenizer_, minTokens, maxTokens, overlap);
+  imp->processor_ = std::make_unique<SourceProcessor>(*imp->settings_);
+  imp->updater_ = std::make_unique<IncrementalUpdater>(imp->db_.get());
+
+  imp->httpServer_ = std::make_unique<HttpServer>(*imp->chunker_, *imp->db_, *imp->embeddingClient_, *imp->completionClient_);
+}
+
 void App::embed()
 {
   std::cout << "Starting embedding process..." << std::endl;
@@ -441,31 +467,6 @@ void App::watch(int intervalSeconds)
 //
 //  std::cout << "Rebuild complete!" << std::endl;
 //}
-
-void App::initialize()
-{
-  std::string dbPath = imp->settings_->databaseSqlitePath();
-  std::string indexPath = imp->settings_->databaseIndexPath();
-  size_t vectorDim = imp->settings_->databaseVectorDim();
-  size_t maxElements = imp->settings_->databaseMaxElements();
-
-  imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements);
-
-  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(imp->settings_->embeddingApiUrl(), imp->settings_->embeddingTimeoutMs());
-  imp->completionClient_ = std::make_unique<CompletionClient>(imp->settings_->generationApiUrl(), imp->settings_->generationTimeoutMs());
-
-  imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(imp->settings_->tokenizerConfigPath());
-
-  size_t minTokens = imp->settings_->chunkingMinTokens();
-  size_t maxTokens = imp->settings_->chunkingMaxTokens();
-  float overlap = imp->settings_->chunkingOverlap();
-
-  imp->chunker_ = std::make_unique<Chunker>(*imp->tokenizer_, minTokens, maxTokens, overlap);
-  imp->processor_ = std::make_unique<SourceProcessor>(*imp->settings_);
-  imp->updater_ = std::make_unique<IncrementalUpdater>(imp->db_.get());
-
-  imp->httpServer_ = std::make_unique<HttpServer>(*imp->chunker_, *imp->db_, *imp->embeddingClient_, *imp->completionClient_);
-}
 
 std::string App::currentTimestamp()
 {
