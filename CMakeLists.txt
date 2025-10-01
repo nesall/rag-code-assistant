@@ -11,7 +11,7 @@ include(FetchContent)
 FetchContent_Declare(
     httplib
     GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG v0.14.3
+    GIT_TAG v0.23.1
 )
 
 # Fetch hnswlib
@@ -50,6 +50,7 @@ add_executable(${PROJECT_NAME}
   include/embedder.h
   include/database.h
   include/sourceproc.h
+  include/httpserver.h
   include/app.h
   src/tokenizer.cpp
   src/settings.cpp
@@ -57,6 +58,7 @@ add_executable(${PROJECT_NAME}
   src/embedder.cpp
   src/database.cpp
   src/sourceproc.cpp
+  src/httpserver.cpp
   src/app.cpp
 )
 

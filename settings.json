@@ -1,6 +1,6 @@
 {
   "tokenizer": {
-    "config_path": "bge_tokenizer.json"
+    "config_path": "../../bge_tokenizer.json"
   },
   "embedding": {
     "api_url": "http://127.0.0.1:8583/embedding",
@@ -8,6 +8,11 @@
     "batch_size": 32,
     "timeout_ms": 30000,
     "retry_attempts": 3
+  },
+  "generation": {
+    "api_url": "http://127.0.0.1:8585/v1/chat/completions",
+    "api_key": "${OPENAI_API_KEY}",
+    "timeout_ms": 30000
   },
   "database": {
     "sqlite_path": "db_metadata.db",
@@ -25,7 +30,7 @@
   "sources": [
     {
       "type": "directory",
-      "path": "embedder_cpp/src",
+      "path": "../../embedder_cpp/src",
       "recursive": true,
       "extensions": [".cpp", ".h", ".hpp"],
       "exclude": ["*/build/*", "*/test/*"]

@@ -5,11 +5,11 @@
 #include "chunker.h"
 #include "tokenizer.h"
 #include "sourceproc.h"
-#include <httplib.h>
+#include "httpserver.h"
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <filesystem>
-#include <atomic>
 #include <vector>
 #include <sstream>
 #include <ctime>
@@ -229,12 +229,13 @@ struct App::Impl {
   std::unique_ptr<Settings> settings_;
   std::unique_ptr<VectorDatabase> db_;
   std::unique_ptr<EmbeddingClient> embeddingClient_;
+  std::unique_ptr<CompletionClient> completionClient_;
   std::unique_ptr<SimpleTokenCounter> tokenizer_;
   std::unique_ptr<Chunker> chunker_;
   std::unique_ptr<SourceProcessor> processor_;
   std::unique_ptr<IncrementalUpdater> updater_;
-  //json config_;
-  std::atomic<bool> serverRunning_{ false };
+  std::unique_ptr<HttpServer> httpServer_;
+  //std::atomic<bool> serverRunning_{ false };
 };
 
 App::App(const std::string &configPath) : imp(new Impl)
@@ -245,6 +246,7 @@ App::App(const std::string &configPath) : imp(new Impl)
 
 App::~App()
 {
+  imp->httpServer_->stop();
 }
 
 void App::embed()
@@ -354,141 +356,9 @@ void App::clear()
   }
 }
 
-void App::startServer(int port) {
-  httplib::Server server;
-  imp->serverRunning_ = true;
-
-  server.Get("/health", [](const httplib::Request &, httplib::Response &res) {
-    json response = { {"status", "ok"} };
-    res.set_content(response.dump(), "application/json");
-    std::cout << "Health check OK" << std::endl;
-    });
-
-  server.Post("/search", [this](const httplib::Request &req, httplib::Response &res) {
-    try {
-      std::cout << "Received /search request" << std::endl;
-      json request = json::parse(req.body);
-
-      std::string query = request["query"].get<std::string>();
-      size_t top_k = request.value("top_k", 5);
-      std::vector<float> queryEmbedding;
-      imp->embeddingClient_->generateEmbeddings({ query }, queryEmbedding);
-
-      auto results = imp->db_->search(queryEmbedding, top_k);
-
-      json response = json::array();
-      for (const auto &result : results) {
-        response.push_back({
-            {"content", result.content},
-            {"source_id", result.sourceId},
-            {"chunk_type", result.chunkType},
-            {"similarity_score", result.similarityScore},
-            {"start_pos", result.startPos},
-            {"end_pos", result.endPos}
-          });
-      }
-
-      res.set_content(response.dump(), "application/json");
-
-    } catch (const std::exception &e) {
-      json error = { {"error", e.what()} };
-      res.status = 400;
-      res.set_content(error.dump(), "application/json");
-    }
-    });
-
-  // (one-off embedding without storage)
-  server.Post("/embed", [this](const httplib::Request &req, httplib::Response &res) {
-    try {
-      std::cout << "Received /embed request" << std::endl;
-      json request = json::parse(req.body);
-      std::string text = request["text"].get<std::string>();
-
-      std::vector<float> embedding;
-      imp->embeddingClient_->generateEmbeddings({ text }, embedding);
-
-      json response = {
-          {"embedding", embedding},
-          {"dimension", embedding.size()}
-      };
-
-      res.set_content(response.dump(), "application/json");
-
-    } catch (const std::exception &e) {
-      json error = { {"error", e.what()} };
-      res.status = 400;
-      res.set_content(error.dump(), "application/json");
-    }
-    });
-
-  server.Post("/add", [this](const httplib::Request &req, httplib::Response &res) {
-    try {
-      std::cout << "Received /add request" << std::endl;
-      json request = json::parse(req.body);
-
-      std::string content = request["content"].get<std::string>();
-      std::string source_id = request["source_id"].get<std::string>();
-
-      auto chunks = imp->chunker_->chunkText(content, source_id);
-
-      size_t inserted = 0;
-      for (const auto &chunk : chunks) {
-        std::vector<float> embedding;
-        imp->embeddingClient_->generateEmbeddings({ chunk.text }, embedding);
-        imp->db_->addDocument(chunk, embedding);
-        inserted++;
-      }
-
-      imp->db_->persist();
-
-      json response = {
-          {"status", "success"},
-          {"chunks_added", inserted}
-      };
-
-      res.set_content(response.dump(), "application/json");
-
-    } catch (const std::exception &e) {
-      json error = { {"error", e.what()} };
-      res.status = 400;
-      res.set_content(error.dump(), "application/json");
-    }
-    });
-
-  server.Get("/stats", [this](const httplib::Request &, httplib::Response &res) {
-    try {
-      auto stats = imp->db_->getStats();
-
-      json sources_obj = json::object();
-      for (const auto &[source, count] : stats.sources) {
-        sources_obj[source] = count;
-      }
-
-      json response = {
-          {"total_chunks", stats.totalChunks},
-          {"vector_count", stats.vectorCount},
-          {"sources", sources_obj}
-      };
-
-      res.set_content(response.dump(), "application/json");
-
-    } catch (const std::exception &e) {
-      json error = { {"error", e.what()} };
-      res.status = 500;
-      res.set_content(error.dump(), "application/json");
-    }
-    });
-
-  std::cout << "Starting HTTP API server on port " << port << "..." << std::endl;
-  std::cout << "Endpoints:" << std::endl;
-  std::cout << "  GET  /health" << std::endl;
-  std::cout << "  POST /search  - {\"query\": \"...\", \"top_k\": 5}" << std::endl;
-  std::cout << "  POST /embed   - {\"text\": \"...\"}" << std::endl;
-  std::cout << "  POST /add     - {\"content\": \"...\", \"source_id\": \"...\"}" << std::endl;
-  std::cout << "  GET  /stats" << std::endl;
-  std::cout << "\nPress Ctrl+C to stop" << std::endl;
-
-  server.listen("0.0.0.0", port);
+void App::serve(int port)
+{
+  imp->httpServer_->startServer(port);
 }
 
 bool App::update()
@@ -549,12 +419,10 @@ void App::initialize()
 
   imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements);
 
-  std::string apiUrl = imp->settings_->embeddingApiUrl();
-  size_t timeout = imp->settings_->embeddingTimeoutMs();
-  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(apiUrl, timeout);
+  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(imp->settings_->embeddingApiUrl(), imp->settings_->embeddingTimeoutMs());
+  imp->completionClient_ = std::make_unique<CompletionClient>(imp->settings_->generationApiUrl(), imp->settings_->generationTimeoutMs());
 
-  std::string tokenizerPath = imp->settings_->tokenizerConfigPath();
-  imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(tokenizerPath);
+  imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(imp->settings_->tokenizerConfigPath());
 
   size_t minTokens = imp->settings_->chunkingMinTokens();
   size_t maxTokens = imp->settings_->chunkingMaxTokens();
@@ -563,6 +431,8 @@ void App::initialize()
   imp->chunker_ = std::make_unique<Chunker>(*imp->tokenizer_, minTokens, maxTokens, overlap);
   imp->processor_ = std::make_unique<SourceProcessor>(*imp->settings_);
   imp->updater_ = std::make_unique<IncrementalUpdater>(imp->db_.get());
+
+  imp->httpServer_ = std::make_unique<HttpServer>(*imp->chunker_, *imp->db_, *imp->embeddingClient_, *imp->completionClient_);
 }
 
 std::string App::currentTimestamp()
@@ -654,7 +524,7 @@ int App::run(int argc, char *argv[])
           std::cout << "Using default port " << port << std::endl;
         }
       }
-      app.startServer(port);
+      app.serve(port);
     } else {
       std::cerr << "Unknown command: " << command << std::endl;
       printUsage();

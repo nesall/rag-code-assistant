@@ -20,9 +20,10 @@ public:
   void search(const std::string &query, size_t topK = 5);
   void stats();
   void clear();
+  void serve(int port);
 
-  // HTTP API server
-  void startServer(int port = 8081);
+  //// HTTP API server
+  //void startServer(int port = 8081);
 
 public:
   static void printUsage();

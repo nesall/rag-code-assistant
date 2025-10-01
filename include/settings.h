@@ -33,6 +33,8 @@ public:
   std::string embeddingApiUrl() const { return config_["embedding"]["api_url"]; }
   size_t embeddingTimeoutMs() const { return config_["embedding"]["timeout_ms"]; }
   size_t embeddingBatchSize() const { return config_["embedding"]["batch_size"]; }
+  std::string generationApiUrl() const { return config_["generation"]["api_url"]; }
+  size_t generationTimeoutMs() const { return config_["generation"]["timeout_ms"]; }
   std::string databaseSqlitePath() const { return config_["database"]["sqlite_path"]; }
   std::string databaseIndexPath() const { return config_["database"]["index_path"]; }
   size_t databaseVectorDim() const { return config_["database"]["vector_dim"]; }
