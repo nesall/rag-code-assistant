@@ -40,7 +40,7 @@ Reclaim space used by deleted index items
 Search nearest neighbours  
 ```./embedder search "how to optimize C++" --top 10```
 
-Chat with LLM
+Chat with LLM  
 ```./embedder chat```
 
 
