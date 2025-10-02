@@ -1,13 +1,16 @@
 #include "inference.h"
 #include "database.h"
+#include "settings.h"
 #include <stdexcept>
 #include <iostream>
 #include <cmath>  // for std::sqrt
 #include <httplib.h>
 
-
-InferenceClient::InferenceClient(const std::string &url, const std::string &apiKey, size_t timeout)
-  : apiKey_(apiKey), serverUrl_(url), timeoutMs_(timeout)
+InferenceClient::InferenceClient(const std::string &url, const std::string &apiKey, const std::string &model, size_t timeout)
+  : serverUrl_(url)
+  , apiKey_(apiKey)
+  , model_(model)
+  , timeoutMs_(timeout)
 {
   parseUrl();
 }
@@ -26,7 +29,7 @@ void InferenceClient::parseUrl()
     port_ = std::stoi(serverUrl_.substr(port_start + 1, path_start - port_start - 1));
   } else {
     host_ = serverUrl_.substr(hostStart, path_start - hostStart);
-    port_ = 80;
+    port_ = serverUrl_.starts_with("https:") ? 443 : 80;
   }
 
   path_ = serverUrl_.substr(path_start);
@@ -36,8 +39,8 @@ void InferenceClient::parseUrl()
 //---------------------------------------------------------------------------
 
 
-EmbeddingClient::EmbeddingClient(const std::string &url, const std::string &apiKey, size_t timeout)
-  : InferenceClient(url, apiKey, timeout)
+EmbeddingClient::EmbeddingClient(const Settings &ss)
+  : InferenceClient(ss.embeddingApiUrl(), ss.embeddingApiKey(), ss.embeddingModel(), ss.embeddingTimeoutMs())
 {
 }
 
@@ -131,8 +134,8 @@ namespace {
   )" };
 } // anonymous namespace
 
-CompletionClient::CompletionClient(const std::string &url, const std::string &apiKey, size_t timeout)
-  : InferenceClient(url, apiKey, timeout)
+CompletionClient::CompletionClient(const Settings &ss)
+  : InferenceClient(ss.generationApiUrl(), ss.generationApiKey(), ss.generationModel(), ss.generationTimeoutMs())
 {
 }
 
@@ -142,7 +145,14 @@ std::string CompletionClient::generateCompletion(
   float temperature,
   std::function<void(const std::string &)> onStream)
 {
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+  httplib::SSLClient client(host_, port_);
+#else 
+  if (serverUrl_.starts_with("https://")) {
+    throw std::runtime_error("HTTPS not supported in this build");
+  }
   httplib::Client client(host_, port_);
+#endif
   client.set_connection_timeout(0, timeoutMs_ * 1000);
   client.set_read_timeout(timeoutMs_ / 1000, (timeoutMs_ % 1000) * 1000);
 
@@ -181,7 +191,7 @@ std::string CompletionClient::generateCompletion(
   //std::cout << "Full context: " << modifiedMessages.dump() << "\n";
 
   nlohmann::json requestBody;
-  requestBody["model"] = "gpt-3.5-turbo-instruct";
+  requestBody["model"] = model_;
   requestBody["messages"] = modifiedMessages;
   requestBody["temperature"] = temperature;
   requestBody["stream"] = true;

@@ -78,7 +78,31 @@ target_include_directories(${PROJECT_NAME}
 
 # Enable threading (required by hnswlib)
 find_package(Threads REQUIRED)
-target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads)
+target_link_libraries(${PROJECT_NAME} PRIVATE Threads::Threads )
+
+if(WIN32)
+    set(OPENSSL_ROOT_DIR "C:/Program Files/OpenSSL-Win64")
+    set(OPENSSL_INCLUDE_DIR "${OPENSSL_ROOT_DIR}/include")
+    set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libcrypto.lib")
+    set(OPENSSL_SSL_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libssl.lib")
+endif()
+
+# Optional OpenSSL support
+find_package(OpenSSL QUIET)
+if(OpenSSL_FOUND)
+    message(STATUS "OpenSSL found - HTTPS support enabled")
+    message(STATUS "  OpenSSL version: ${OPENSSL_VERSION}")
+    message(STATUS "  OpenSSL include: ${OPENSSL_INCLUDE_DIR}")
+    message(STATUS "  OpenSSL libraries: ${OPENSSL_LIBRARIES}")
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+else()
+    message(WARNING "OpenSSL not found - HTTPS support disabled")
+    if(WIN32)
+        message(WARNING "  Hint: Install from https://slproweb.com/products/Win32OpenSSL.html")
+        message(WARNING "  Or set: cmake -DOPENSSL_ROOT_DIR=\"C:/Program Files/OpenSSL-Win64\"")
+    endif()
+endif()
 
 # Platform-specific settings
 if(WIN32)

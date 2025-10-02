@@ -259,8 +259,8 @@ void App::initialize()
 
   imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements);
 
-  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(ss.embeddingApiUrl(), ss.embeddingApiKey(), ss.embeddingTimeoutMs());
-  imp->completionClient_ = std::make_unique<CompletionClient>(ss.generationApiUrl(), ss.generationApiKey(), ss.generationTimeoutMs());
+  imp->embeddingClient_ = std::make_unique<EmbeddingClient>(ss);
+  imp->completionClient_ = std::make_unique<CompletionClient>(ss);
 
   imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(ss.tokenizerConfigPath());
 
