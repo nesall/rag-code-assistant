@@ -125,7 +125,7 @@ float EmbeddingClient::calculateL2Norm(const std::vector<float> &vec)
 namespace {
   const std::string &_queryTemplate{ R"(
   You're a helpful software developer assistent, please use the provided context to base your answers on
-  for user questions. Answer to the best of your knowledge.
+  for user questions. Answer to the best of your knowledge. Keep your responses short and on point.
   Context:
   __CONTEXT__
 
@@ -226,7 +226,12 @@ std::string CompletionClient::generateCompletion(
             if (chunkJson.contains("choices") && !chunkJson["choices"].empty()) {
               const auto &choice = chunkJson["choices"][0];
               if (choice.contains("delta") && choice["delta"].contains("content")) {
-                std::string content = choice["delta"]["content"];
+                // Either choice["delta"]["content"] or choice["delta"]["reasoning_content"]
+                std::string content;
+                if (!choice["delta"]["content"].is_null())
+                  content = choice["delta"]["content"];
+                else if (!choice["delta"]["reasoning_content"].is_null())
+                  content = choice["delta"]["reasoning_content"];
                 fullResponse += content;
                 if (onStream) {
                   onStream(content);

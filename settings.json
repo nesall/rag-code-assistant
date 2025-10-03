@@ -11,10 +11,13 @@
     "model": "text-embedding-3-small"
   },
   "generation": {
-    "api_url": "https://api.openai.com/v1/chat/completions",
-    "api_key": "${OPENAI_API_KEY}",
+    "api_url": "https://api.deepseek.com/chat/completions",
+    "api_url_1": "https://api.openai.com/v1/chat/completions",
+    "api_url_2": "http://127.0.0.1:8585/v1/chat/completions",
+    "api_key": "${DEEPSEEK_API_KEY}",
     "timeout_ms": 60000,
-    "model": "gpt-4o-mini"
+    "model": "deepseek-chat",
+    "model_": "gpt-4o-mini"
   },
   "database": {
     "sqlite_path": "db_metadata.db",

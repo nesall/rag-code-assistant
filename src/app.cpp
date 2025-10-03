@@ -400,7 +400,7 @@ void App::chat()
       auto searchResults = imp->db_->search(queryEmbedding, 5);
       std::cout << "\nAssistant: " << std::flush;
       std::string assistantResponse = imp->completionClient_->generateCompletion(
-        messages, searchResults, 0.5,
+        messages, searchResults, 0.0f,
         [](const std::string &chunk) {
           std::cout << chunk << std::flush;
         }
