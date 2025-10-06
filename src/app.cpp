@@ -147,6 +147,8 @@ namespace {
         std::cout << "Adding new file: " << filepath << std::endl;
 
         try {
+          db_->beginTransaction();
+
           std::string content = readFile(filepath);
           auto chunks = chunker.chunkText(content, filepath);
 
@@ -161,9 +163,10 @@ namespace {
           totalUpdated++;
 
           std::cout << "  Added with " << chunks.size() << " chunks" << std::endl;
-
+          db_->commit();
         } catch (const std::exception &e) {
           std::cerr << "  Error: " << e.what() << std::endl;
+          db_->rollback();
         }
       }
 

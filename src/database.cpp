@@ -145,13 +145,19 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::searchWithFilter(const std::
 
 void HnswSqliteVectorDatabase::clear()
 {
-  executeSql("DELETE FROM chunks");
-  executeSql("DELETE FROM files_metadata");
-  // Just recreate index - simpler than unmarking everything
-  imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
-  imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-    imp->space_.get(), imp->maxElements_, 16, 200, 42, true
-  );
+  try {
+    beginTransaction();
+    executeSql("DELETE FROM chunks");
+    executeSql("DELETE FROM files_metadata");
+    // Just recreate index - simpler than unmarking everything
+    imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
+    imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+      imp->space_.get(), imp->maxElements_, 16, 200, 42, true
+    );
+  } catch (...) {
+    rollback();
+  }
+  commit();
 }
 
 void HnswSqliteVectorDatabase::initializeDatabase()
