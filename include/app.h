@@ -15,7 +15,6 @@ public:
   void embed();
   void watch(int interval_seconds = 60);
   bool update();
-  //void rebuild();
   void compact();
   void search(const std::string &query, size_t topK = 5);
   void stats();
@@ -29,13 +28,9 @@ public:
 
 private:
   void initialize();
-  //std::vector<Source> getSources();
-  //std::vector<Source> processDirectory(const json &source);
-  //std::string readFile(const std::string &path);
-  std::string currentTimestamp();
-
 };
 
 namespace utils {
+  std::string currentTimestamp();
   time_t getFileModificationTime(const std::string &path);
 }

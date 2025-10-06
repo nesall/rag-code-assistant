@@ -24,12 +24,19 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 
+
+std::string utils::currentTimestamp()
+{
+  auto now = std::chrono::system_clock::now();
+  auto time = std::chrono::system_clock::to_time_t(now);
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
+  return ss.str();
+}
+
 time_t utils::getFileModificationTime(const std::string &path)
 {
   auto ftime = fs::last_write_time(path);
-  //auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-  //  ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
-  //);
   auto sctp = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
   return std::chrono::system_clock::to_time_t(sctp);
 }
@@ -449,21 +456,12 @@ void App::watch(int intervalSeconds)
     std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
     try {
       if (update()) {
-        std::cout << "[" << currentTimestamp() << "] updates detected and applied.\n";
+        std::cout << "[" << utils::currentTimestamp() << "] updates detected and applied.\n";
       }
     } catch (const std::exception &e) {
       std::cerr << "Error during update: " << e.what() << std::endl;
     }
   }
-}
-
-std::string App::currentTimestamp()
-{
-  auto now = std::chrono::system_clock::now();
-  auto time = std::chrono::system_clock::to_time_t(now);
-  std::stringstream ss;
-  ss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S");
-  return ss.str();
 }
 
 void App::printUsage()

@@ -66,9 +66,6 @@ bool HttpServer::startServer(int port)
     std::cout << "Health check OK" << std::endl;
     });
 
-  // endpoint /meta/files
-
-
   server.Post("/search", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       std::cout << "Received /search request" << std::endl;
