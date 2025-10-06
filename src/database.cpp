@@ -7,6 +7,25 @@
 #include <filesystem>
 #include <unordered_set>
 #include <format>
+#include "app.h"
+
+
+namespace {
+
+  struct SqliteErrorChecker {
+    sqlite3 *sq_ = nullptr;
+    SqliteErrorChecker &operator = (sqlite3 *sq) { sq_ = sq; return *this; }
+    SqliteErrorChecker &operator = (int rc) {
+      if (rc != SQLITE_OK && rc != SQLITE_DONE && rc != SQLITE_ROW) {
+        throw std::runtime_error("SQLite error: " + std::string(sqlite3_errmsg(sq_)));
+      }
+      return *this;
+    }
+  };
+
+  SqliteErrorChecker _checkErr;
+
+} // anonymous namespace
 
 
 struct HnswSqliteVectorDatabase::Impl {
@@ -36,6 +55,7 @@ HnswSqliteVectorDatabase::HnswSqliteVectorDatabase(const std::string &dbPath, co
 HnswSqliteVectorDatabase::~HnswSqliteVectorDatabase() {
   if (imp->db_) {
     sqlite3_close(imp->db_);
+    _checkErr = nullptr;
   }
 }
 
@@ -45,29 +65,31 @@ size_t HnswSqliteVectorDatabase::addDocument(const Chunk &chunk, const std::vect
     throw std::runtime_error(std::format("Embedding dimension mismatch: actual {}, claimed {}", embedding.size(), imp->vectorDim_));
   }
   size_t chunkId = insertMetadata(chunk);
+  try {
+    upsertFileMetadata(chunk.docUri, utils::getFileModificationTime(chunk.docUri), std::filesystem::file_size(chunk.docUri));
+  } catch (const std::exception &) {
+  }
   imp->index_->addPoint(embedding.data(), chunkId);
   return chunkId;
 }
 
-std::vector<size_t> HnswSqliteVectorDatabase::addDocuments(const std::vector<Chunk> &chunks,
-  const std::vector<std::vector<float>> &embeddings)
+std::vector<size_t> HnswSqliteVectorDatabase::addDocuments(const std::vector<Chunk> &chunks, const std::vector<std::vector<float>> &embeddings)
 {
   if (chunks.size() != embeddings.size()) {
     throw std::runtime_error("Chunks and embeddings count mismatch");
   }
   std::vector<size_t> chunkIds;
-  executeSql("BEGIN TRANSACTION");
+  beginTransaction();
   try {
     for (size_t i = 0; i < chunks.size(); ++i) {
       size_t id = addDocument(chunks[i], embeddings[i]);
       chunkIds.push_back(id);
     }
-    executeSql("COMMIT");
+    commit();
   } catch (...) {
-    executeSql("ROLLBACK");
+    rollback();
     throw;
   }
-
   return chunkIds;
 }
 
@@ -138,6 +160,7 @@ void HnswSqliteVectorDatabase::initializeDatabase()
   if (rc != SQLITE_OK) {
     throw std::runtime_error("Cannot open database: " + std::string(sqlite3_errmsg(imp->db_)));
   }
+  _checkErr = imp->db_;
   const char *chunksTable = R"(
         CREATE TABLE IF NOT EXISTS chunks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,7 +221,7 @@ size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
     )";
 
   sqlite3_stmt *stmt;
-  sqlite3_prepare_v2(imp->db_, insertSql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_prepare_v2(imp->db_, insertSql, -1, &stmt, nullptr);
   int k = 1;
   sqlite3_bind_text(stmt, k++, chunk.text.c_str(), -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, k++, chunk.docUri.c_str(), -1, SQLITE_STATIC);
@@ -209,10 +232,10 @@ size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
   int rc = sqlite3_step(stmt);
   if (rc != SQLITE_DONE) {
     sqlite3_finalize(stmt);
-    throw std::runtime_error("Failed to insert chunk metadata");
+    throw std::runtime_error("Failed to insert chunk metadata: " + std::string(sqlite3_errmsg(imp->db_)));
   }
   size_t chunkId = sqlite3_last_insert_rowid(imp->db_);
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
   return chunkId;
 }
 
@@ -223,8 +246,8 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
         FROM chunks WHERE id = ?
     )";
   sqlite3_stmt *stmt;
-  sqlite3_prepare_v2(imp->db_, selectSql, -1, &stmt, nullptr);
-  sqlite3_bind_int64(stmt, 1, chunkId);
+  _checkErr = sqlite3_prepare_v2(imp->db_, selectSql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_bind_int64(stmt, 1, chunkId);
   SearchResult result;
   bool found = false;
   if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -235,7 +258,7 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
     result.endPos = sqlite3_column_int64(stmt, 4);
     found = true;
   }
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
   return found ? std::optional<SearchResult>(result) : std::nullopt;
 }
 
@@ -244,12 +267,12 @@ std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::str
   std::vector<size_t> ids;
   sqlite3_stmt *stmt;
   const char *sql = "SELECT id FROM chunks WHERE source_id = ?";
-  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
-  sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
+  _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     ids.push_back(sqlite3_column_int64(stmt, 0));
   }
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
   return ids;
 }
 
@@ -260,12 +283,11 @@ size_t HnswSqliteVectorDatabase::deleteDocumentsBySource(const std::string &sour
   try {
     sqlite3_stmt *stmt;
     const char *sql = "DELETE FROM chunks WHERE source_id = ?";
-    sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
-    sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
-    int result = sqlite3_step(stmt);
+    _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+    _checkErr = sqlite3_bind_text(stmt, 1, sourceId.c_str(), -1, SQLITE_STATIC);
+    _checkErr = sqlite3_step(stmt);
     size_t n = sqlite3_changes(imp->db_);
-    sqlite3_finalize(stmt);
-    sqlite3_close(imp->db_);
+    _checkErr = sqlite3_finalize(stmt);
     for (size_t id : chunkIds) {
       imp->index_->markDelete(id);
     }
@@ -280,22 +302,22 @@ void HnswSqliteVectorDatabase::removeFileMetadata(const std::string &filepath)
 {
   sqlite3_stmt *stmt;
   const char *sql = "DELETE FROM files_metadata WHERE path = ?";
-  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
-  sqlite3_bind_text(stmt, 1, filepath.c_str(), -1, SQLITE_STATIC);
-  sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_bind_text(stmt, 1, filepath.c_str(), -1, SQLITE_STATIC);
+  _checkErr = sqlite3_step(stmt);
+  _checkErr = sqlite3_finalize(stmt);
 }
 
 void HnswSqliteVectorDatabase::upsertFileMetadata(const std::string &filepath, std::time_t mtime, size_t size)
 {
   sqlite3_stmt *stmt;
   const char *sql = "INSERT OR REPLACE INTO files_metadata (path, last_modified, file_size) VALUES (?, ?, ?)";
-  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
-  sqlite3_bind_text(stmt, 1, filepath.c_str(), -1, SQLITE_STATIC);
-  sqlite3_bind_int64(stmt, 2, mtime);
-  sqlite3_bind_int64(stmt, 3, size);
-  sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_bind_text(stmt, 1, filepath.c_str(), -1, SQLITE_STATIC);
+  _checkErr = sqlite3_bind_int64(stmt, 2, mtime);
+  _checkErr = sqlite3_bind_int64(stmt, 3, size);
+  _checkErr = sqlite3_step(stmt);
+  _checkErr = sqlite3_finalize(stmt);
 }
 
 std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
@@ -303,7 +325,7 @@ std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
   std::vector<FileMetadata> files;
   sqlite3_stmt *stmt;
   const char *sql = "SELECT path, last_modified, file_size FROM files_metadata";
-  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     FileMetadata meta;
     meta.path = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
@@ -311,7 +333,7 @@ std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
     meta.fileSize = sqlite3_column_int64(stmt, 2);
     files.push_back(meta);
   }
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
   return files;
 }
 
@@ -322,18 +344,18 @@ DatabaseStats HnswSqliteVectorDatabase::getStats() const
   stats.deletedCount = imp->index_->getDeletedCount();
   stats.activeCount = imp->index_->getCurrentElementCount() - imp->index_->getDeletedCount();
   sqlite3_stmt *stmt;
-  sqlite3_prepare_v2(imp->db_, "SELECT COUNT(*) FROM chunks", -1, &stmt, nullptr);
+  _checkErr = sqlite3_prepare_v2(imp->db_, "SELECT COUNT(*) FROM chunks", -1, &stmt, nullptr);
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     stats.totalChunks = sqlite3_column_int64(stmt, 0);
   }
-  sqlite3_finalize(stmt);
-  sqlite3_prepare_v2(imp->db_, "SELECT source_id, COUNT(*) FROM chunks GROUP BY source_id", -1, &stmt, nullptr);
+  _checkErr = sqlite3_finalize(stmt);
+  _checkErr = sqlite3_prepare_v2(imp->db_, "SELECT source_id, COUNT(*) FROM chunks GROUP BY source_id", -1, &stmt, nullptr);
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     std::string source = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
     size_t count = sqlite3_column_int64(stmt, 1);
     stats.sources.emplace_back(source, count);
   }
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
   return stats;
 }
 
@@ -371,7 +393,7 @@ void HnswSqliteVectorDatabase::compactIndex()
 
   sqlite3_stmt *stmt;
   const char *sql = "SELECT id FROM chunks";
-  sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
+  _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
 
   while (sqlite3_step(stmt) == SQLITE_ROW) {
     size_t chunkId = sqlite3_column_int64(stmt, 0);
@@ -380,7 +402,7 @@ void HnswSqliteVectorDatabase::compactIndex()
       activeItems.emplace_back(chunkId, std::move(embedding));
     }
   }
-  sqlite3_finalize(stmt);
+  _checkErr = sqlite3_finalize(stmt);
 
   // Create new index
   auto new_space = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);

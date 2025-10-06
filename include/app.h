@@ -35,3 +35,7 @@ private:
   std::string currentTimestamp();
 
 };
+
+namespace utils {
+  time_t getFileModificationTime(const std::string &path);
+}

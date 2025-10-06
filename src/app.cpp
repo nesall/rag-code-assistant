@@ -17,10 +17,23 @@
 #include <unordered_map>
 #include <thread>
 #include <stdexcept>
+#include <chrono>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
+
+
+time_t utils::getFileModificationTime(const std::string &path)
+{
+  auto ftime = fs::last_write_time(path);
+  //auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+  //  ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
+  //);
+  auto sctp = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
+  return std::chrono::system_clock::to_time_t(sctp);
+}
+
 
 namespace {
 
@@ -42,37 +55,26 @@ namespace {
       std::vector<std::string> unchangedFiles;
     };
 
-    UpdateInfo detectChanges(const std::vector<std::string> &current_files) {
+    UpdateInfo detectChanges(const std::vector<std::string> &currentFiles) {
       UpdateInfo info;
-
-      // Get previously tracked files
       auto trackedFiles = db_->getTrackedFiles();
       std::unordered_map<std::string, FileMetadata> trackedMap;
       for (const auto &meta : trackedFiles) {
         trackedMap[meta.path] = meta;
       }
-
-      // Check current files
-      for (const auto &filepath : current_files) {
+      for (const auto &filepath : currentFiles) {
         if (!fs::exists(filepath)) continue;
-
-        auto currentModTime = getFileModificationTime(filepath);
+        auto currentModTime = utils::getFileModificationTime(filepath);
         auto currentSize = fs::file_size(filepath);
-
         auto it = trackedMap.find(filepath);
         if (it == trackedMap.end()) {
-          // New file
           info.newFiles.push_back(filepath);
         } else {
-          // Existing file - check if modified
-          if (it->second.lastModified != currentModTime ||
-            it->second.fileSize != currentSize) {
+          if (it->second.lastModified != currentModTime || it->second.fileSize != currentSize) {
             info.modifiedFiles.push_back(filepath);
           } else {
             info.unchangedFiles.push_back(filepath);
           }
-
-          // Remove from trackedMap (remaining will be deleted)
           trackedMap.erase(it);
         }
       }
@@ -85,27 +87,39 @@ namespace {
       return info;
     }
 
+    bool needsUpdate(const UpdateInfo &info) {
+      return !info.newFiles.empty() || !info.modifiedFiles.empty() || !info.deletedFiles.empty();
+    }
+
     // Update database incrementally
     size_t updateDatabase(EmbeddingClient &client, Chunker &chunker, const UpdateInfo &info) {
       size_t totalUpdated = 0;
 
-      // Handle deletions
-      for (const auto &filepath : info.deletedFiles) {
-        std::cout << "Deleting chunks for: " << filepath << std::endl;
-        db_->deleteDocumentsBySource(filepath);
-        db_->removeFileMetadata(filepath);
-        totalUpdated++;
+      if (!info.deletedFiles.empty()) {
+        try {
+          db_->beginTransaction();
+          for (const auto &filepath : info.deletedFiles) {
+            std::cout << "Deleting chunks for: " << filepath << std::endl;
+            db_->deleteDocumentsBySource(filepath);
+            db_->removeFileMetadata(filepath);
+            totalUpdated++;
+          }
+          db_->commit();
+        } catch (const std::exception &e) {
+          db_->rollback();
+          std::cerr << "  Error during deletions: " << e.what() << std::endl;
+          return totalUpdated;
+        }
       }
 
       // Handle modifications (delete old, insert new)
       for (const auto &filepath : info.modifiedFiles) {
         std::cout << "Updating: " << filepath << std::endl;
 
-        // Delete old chunks
-        db_->deleteDocumentsBySource(filepath);
-
-        // Process and insert new chunks
         try {
+          db_->beginTransaction();
+          db_->deleteDocumentsBySource(filepath);
+
           std::string content = readFile(filepath);
           auto chunks = chunker.chunkText(content, filepath);
 
@@ -115,13 +129,15 @@ namespace {
             db_->addDocument(chunk, embedding);
           }
 
-          // Update metadata
-          updateFileMetadata(filepath);
+          //updateFileMetadata(filepath);
           totalUpdated++;
 
           std::cout << "  Updated with " << chunks.size() << " chunks" << std::endl;
 
+          db_->commit();
+
         } catch (const std::exception &e) {
+          db_->rollback();
           std::cerr << "  Error: " << e.what() << std::endl;
         }
       }
@@ -141,7 +157,7 @@ namespace {
           }
 
           // Add metadata
-          db_->upsertFileMetadata(filepath, getFileModificationTime(filepath), fs::file_size(filepath));
+          //db_->upsertFileMetadata(filepath, utils::getFileModificationTime(filepath), fs::file_size(filepath));
           totalUpdated++;
 
           std::cout << "  Added with " << chunks.size() << " chunks" << std::endl;
@@ -157,14 +173,6 @@ namespace {
       }
 
       return totalUpdated;
-    }
-
-    // Check if update is needed
-    bool needsUpdate(const std::vector<std::string> &current_files) {
-      auto info = detectChanges(current_files);
-      return !info.newFiles.empty() ||
-        !info.modifiedFiles.empty() ||
-        !info.deletedFiles.empty();
     }
 
     // Print update summary
@@ -198,18 +206,9 @@ namespace {
     }
 
   private:
-
-    static time_t getFileModificationTime(const std::string &path) {
-      auto ftime = fs::last_write_time(path);
-      auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-        ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
-      );
-      return std::chrono::system_clock::to_time_t(sctp);
-    }
-
-    void updateFileMetadata(const std::string &filepath) {
-      db_->upsertFileMetadata(filepath, getFileModificationTime(filepath), fs::file_size(filepath)); // Same as add due to INSERT OR REPLACE
-    }
+    //void updateFileMetadata(const std::string &filepath) {
+    //  db_->upsertFileMetadata(filepath, utils::getFileModificationTime(filepath), fs::file_size(filepath)); // Same as add due to INSERT OR REPLACE
+    //}
 
     std::string readFile(const std::string &path) {
       std::ifstream file(path);
@@ -429,7 +428,7 @@ bool App::update()
   }
   auto info = imp->updater_->detectChanges(currentFiles);
   imp->updater_->printUpdateSummary(info);
-  if (!imp->updater_->needsUpdate(currentFiles)) {
+  if (!imp->updater_->needsUpdate(info)) {
     std::cout << "\nNo updates needed. Database is up to date." << std::endl;
     return false;
   }
@@ -454,19 +453,6 @@ void App::watch(int intervalSeconds)
     }
   }
 }
-
-//void App::rebuild()
-//{
-//  std::cout << "Rebuilding vector index..." << std::endl;
-//
-//  // Get all chunks from database
-//  auto chunks = imp->db_->getAllChunks(); // TODO: add
-//
-//  // Clear and rebuild index
-//  imp->db_->rebuildIndex(chunks, *imp->embeddingClient_); // TODO: add
-//
-//  std::cout << "Rebuild complete!" << std::endl;
-//}
 
 std::string App::currentTimestamp()
 {
