@@ -3,6 +3,10 @@
 #include <memory>
 #include <string>
 
+class Chunker;
+class VectorDatabase;
+class EmbeddingClient;
+class CompletionClient;
 
 class App {
   struct Impl;
@@ -21,6 +25,12 @@ public:
   void clear();
   void chat();
   void serve(int port);
+
+  const Chunker &chunker() const;
+  const VectorDatabase &db() const;
+  VectorDatabase &db();
+  const EmbeddingClient &embeddingClient() const;
+  const CompletionClient &completionClient() const;
 
 public:
   static void printUsage();

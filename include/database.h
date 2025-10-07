@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <optional>
+#include <mutex>
 
 
 struct SearchResult {
@@ -37,17 +38,19 @@ struct DatabaseStats {
 
 
 class VectorDatabase {
+protected:
+  mutable std::mutex mutex_;
 public:
   virtual ~VectorDatabase() = default;
 
   virtual size_t addDocument(const Chunk &chunk, const std::vector<float> &embedding) = 0;
   virtual std::vector<size_t> addDocuments(const std::vector<Chunk> &chunks, const std::vector<std::vector<float>> &embeddings) = 0;
 
-  virtual std::vector<SearchResult> search(const std::vector<float> &query, size_t top_k = 10) = 0;
+  virtual std::vector<SearchResult> search(const std::vector<float> &query, size_t top_k = 10) const = 0;
   virtual std::vector<SearchResult> searchWithFilter(const std::vector<float> &query,
     const std::string &sourceFilter = "",
     const std::string &typeFilter = "",
-    size_t top_k = 10) = 0;
+    size_t top_k = 10) const = 0;
 
   virtual size_t deleteDocumentsBySource(const std::string &source_id) = 0;
   virtual void clear() = 0;
@@ -73,11 +76,11 @@ public:
 
   size_t addDocument(const Chunk &chunk, const std::vector<float> &embedding) override;
   std::vector<size_t> addDocuments(const std::vector<Chunk> &chunks, const std::vector<std::vector<float>> &embeddings) override;
-  std::vector<SearchResult> search(const std::vector<float> &queryEmbedding, size_t topK = 10) override;
+  std::vector<SearchResult> search(const std::vector<float> &queryEmbedding, size_t topK = 10) const override;
   std::vector<SearchResult> searchWithFilter(const std::vector<float> &queryEmbedding,
     const std::string &sourceFilter = "",
     const std::string &typeFilter = "",
-    size_t topK = 10) override;
+    size_t topK = 10) const override;
   DatabaseStats getStats() const override;
   void clear() override;
 
@@ -105,7 +108,7 @@ private:
   void initializeVectorIndex();
   void executeSql(const std::string &sql);
   size_t insertMetadata(const Chunk &chunk);
-  std::optional<SearchResult> getChunkMetadata(size_t chunkId);
-  std::vector<size_t> getChunkIdsBySource(const std::string &sourceId);
+  std::optional<SearchResult> getChunkMetadata(size_t chunkId) const;
+  std::vector<size_t> getChunkIdsBySource(const std::string &sourceId) const;
   void compactIndex();
 };

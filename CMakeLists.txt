@@ -42,6 +42,7 @@ target_include_directories(sqlite3_lib PUBLIC ${sqlite3_SOURCE_DIR})
 
 # Create executable
 add_executable(${PROJECT_NAME} 
+  README.md
   settings.json
   main.cpp
   include/tokenizer.h

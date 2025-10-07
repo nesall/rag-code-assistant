@@ -126,7 +126,7 @@ SimpleTokenCounter::SimpleTokenCounter(const std::string &config_path)
   }
 }
 
-size_t SimpleTokenCounter::estimateTokenCount(const std::string &text, bool addSpecialTokens)
+size_t SimpleTokenCounter::estimateTokenCount(const std::string &text, bool addSpecialTokens) const
 {
   std::string padded = padChineseChars(text);
   std::vector<std::string> words = splitSimple(padded);
@@ -149,7 +149,7 @@ size_t SimpleTokenCounter::estimateTokenCount(const std::string &text, bool addS
   return totalTokens;
 }
 
-size_t SimpleTokenCounter::countTokensWithVocab(const std::string &text, bool addSpecialTokens)
+size_t SimpleTokenCounter::countTokensWithVocab(const std::string &text, bool addSpecialTokens) const
 {
   if (vocab_.empty()) {
     return estimateTokenCount(text);
@@ -168,7 +168,7 @@ size_t SimpleTokenCounter::countTokensWithVocab(const std::string &text, bool ad
   return totalTokens;
 }
 
-size_t SimpleTokenCounter::simulateWordpiece(const std::string &word, bool addSpecialTokens)
+size_t SimpleTokenCounter::simulateWordpiece(const std::string &word, bool addSpecialTokens) const
 {
   if (word.length() > maxInputCharsPerWord_) {
     return addSpecialTokens ? 1 : 0; // [UNK]

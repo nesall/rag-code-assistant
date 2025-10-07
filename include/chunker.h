@@ -39,20 +39,20 @@ private:
     std::string type;
   };
 
-  std::unordered_map<std::string, size_t> tokenCache_;
+  mutable std::unordered_map<std::string, size_t> tokenCache_;
 
 public:
   Chunker(SimpleTokenCounter &tok, size_t minTok = 50, size_t maxTok = 500, float overlap = 0.1f);
 
-  std::vector<Chunk> chunkText(const std::string &text, const std::string &uri = "", bool semantic = true);
+  std::vector<Chunk> chunkText(const std::string &text, const std::string &uri = "", bool semantic = true) const;
 
 private:
-  std::string detectContentType(const std::string &text, const std::string &uri);
-  std::vector<Chunk> postProcessChunks(std::vector<Chunk> &chunks);
-  size_t tokenCount(const std::string &text);
-  std::vector<Chunk> splitIntoChunksAdv(std::string text, const std::string &docId);
-  std::vector<Chunk> splitIntoLineChunks(const std::string &text, const std::string &docId);
-  std::vector<std::string> splitIntoLines(const std::string &text);
+  static std::string detectContentType(const std::string &text, const std::string &uri);
+  std::vector<Chunk> postProcessChunks(std::vector<Chunk> &chunks) const;
+  size_t tokenCount(const std::string &text) const;
+  std::vector<Chunk> splitIntoChunksAdv(std::string text, const std::string &docId) const;
+  std::vector<Chunk> splitIntoLineChunks(const std::string &text, const std::string &docId) const;
+  std::vector<std::string> splitIntoLines(const std::string &text) const;
 
 public:
   static std::string normalizeWhitespaces(const std::string &str);

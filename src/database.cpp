@@ -61,6 +61,7 @@ HnswSqliteVectorDatabase::~HnswSqliteVectorDatabase() {
 
 size_t HnswSqliteVectorDatabase::addDocument(const Chunk &chunk, const std::vector<float> &embedding)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (embedding.size() != imp->vectorDim_) {
     throw std::runtime_error(std::format("Embedding dimension mismatch: actual {}, claimed {}", embedding.size(), imp->vectorDim_));
   }
@@ -93,7 +94,7 @@ std::vector<size_t> HnswSqliteVectorDatabase::addDocuments(const std::vector<Chu
   return chunkIds;
 }
 
-std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<float> &queryEmbedding, size_t topK)
+std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<float> &queryEmbedding, size_t topK) const
 {
   if (queryEmbedding.size() != imp->vectorDim_) {
     throw std::runtime_error(std::format("Query embedding dimension mismatch: actual {}, claimed {}", queryEmbedding.size(), imp->vectorDim_));
@@ -101,6 +102,7 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
   if (imp->index_->getCurrentElementCount() == 0) {
     return {};
   }
+  std::lock_guard<std::mutex> lock(mutex_);
   auto result = imp->index_->searchKnn(queryEmbedding.data(), topK);
   std::vector<SearchResult> searchResults;
   while (!result.empty()) {
@@ -123,7 +125,7 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
 std::vector<SearchResult> HnswSqliteVectorDatabase::searchWithFilter(const std::vector<float> &queryEmbedding,
   const std::string &sourceFilter,
   const std::string &typeFilter,
-  size_t topK)
+  size_t topK) const
 {
   auto results = search(queryEmbedding, topK * 2);
   std::vector<SearchResult> filtered;
@@ -145,6 +147,7 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::searchWithFilter(const std::
 
 void HnswSqliteVectorDatabase::clear()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   try {
     beginTransaction();
     executeSql("DELETE FROM chunks");
@@ -162,6 +165,7 @@ void HnswSqliteVectorDatabase::clear()
 
 void HnswSqliteVectorDatabase::initializeDatabase()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   int rc = sqlite3_open(imp->dbPath_.c_str(), &imp->db_);
   if (rc != SQLITE_OK) {
     throw std::runtime_error("Cannot open database: " + std::string(sqlite3_errmsg(imp->db_)));
@@ -194,6 +198,7 @@ void HnswSqliteVectorDatabase::initializeDatabase()
 
 void HnswSqliteVectorDatabase::initializeVectorIndex()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
   if (std::filesystem::exists(imp->indexPath_)) {
     try {
@@ -210,6 +215,7 @@ void HnswSqliteVectorDatabase::initializeVectorIndex()
 
 void HnswSqliteVectorDatabase::executeSql(const std::string &sql)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   char *errorMessage = nullptr;
   int rc = sqlite3_exec(imp->db_, sql.c_str(), nullptr, nullptr, &errorMessage);
   if (rc != SQLITE_OK) {
@@ -221,6 +227,7 @@ void HnswSqliteVectorDatabase::executeSql(const std::string &sql)
 
 size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   const char *insertSql = R"(
         INSERT INTO chunks (content, source_id, start_pos, end_pos, token_count, unit)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -245,8 +252,9 @@ size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
   return chunkId;
 }
 
-std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t chunkId)
+std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t chunkId) const
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   const char *selectSql = R"(
         SELECT content, source_id, start_pos, end_pos 
         FROM chunks WHERE id = ?
@@ -268,8 +276,9 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
   return found ? std::optional<SearchResult>(result) : std::nullopt;
 }
 
-std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::string &sourceId)
+std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::string &sourceId) const
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   std::vector<size_t> ids;
   sqlite3_stmt *stmt;
   const char *sql = "SELECT id FROM chunks WHERE source_id = ?";
@@ -284,6 +293,7 @@ std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::str
 
 size_t HnswSqliteVectorDatabase::deleteDocumentsBySource(const std::string &sourceId)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto chunkIds = getChunkIdsBySource(sourceId);
   if (chunkIds.empty()) return 0;
   try {
@@ -306,6 +316,7 @@ size_t HnswSqliteVectorDatabase::deleteDocumentsBySource(const std::string &sour
 
 void HnswSqliteVectorDatabase::removeFileMetadata(const std::string &filepath)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   sqlite3_stmt *stmt;
   const char *sql = "DELETE FROM files_metadata WHERE path = ?";
   _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
@@ -316,6 +327,7 @@ void HnswSqliteVectorDatabase::removeFileMetadata(const std::string &filepath)
 
 void HnswSqliteVectorDatabase::upsertFileMetadata(const std::string &filepath, std::time_t mtime, size_t size)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   sqlite3_stmt *stmt;
   const char *sql = "INSERT OR REPLACE INTO files_metadata (path, last_modified, file_size) VALUES (?, ?, ?)";
   _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);
@@ -328,6 +340,7 @@ void HnswSqliteVectorDatabase::upsertFileMetadata(const std::string &filepath, s
 
 std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   std::vector<FileMetadata> files;
   sqlite3_stmt *stmt;
   const char *sql = "SELECT path, last_modified, file_size FROM files_metadata";
@@ -345,6 +358,7 @@ std::vector<FileMetadata> HnswSqliteVectorDatabase::getTrackedFiles() const
 
 DatabaseStats HnswSqliteVectorDatabase::getStats() const
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   DatabaseStats stats;
   stats.vectorCount = imp->index_->getCurrentElementCount();
   stats.deletedCount = imp->index_->getDeletedCount();
@@ -367,6 +381,7 @@ DatabaseStats HnswSqliteVectorDatabase::getStats() const
 
 void HnswSqliteVectorDatabase::persist()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (imp->index_->getCurrentElementCount() > 0) {
     imp->index_->saveIndex(imp->indexPath_);
     std::cout << "Saved vector index with " << imp->index_->getCurrentElementCount() << " vectors" << std::endl;
@@ -385,6 +400,7 @@ std::string HnswSqliteVectorDatabase::indexPath() const
 
 void HnswSqliteVectorDatabase::compactIndex()
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   size_t deleted_count = imp->index_->getDeletedCount();
 
   if (deleted_count == 0) {

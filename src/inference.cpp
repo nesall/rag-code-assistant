@@ -44,7 +44,7 @@ EmbeddingClient::EmbeddingClient(const Settings &ss)
 {
 }
 
-void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding)
+void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding) const
 {
   embedding.reserve(1024);
   try {
@@ -98,7 +98,7 @@ void EmbeddingClient::generateEmbeddings(const std::vector<std::string> &texts, 
   }
 }
 
-std::vector<std::vector<float>> EmbeddingClient::generateBatchEmbeddings(const std::vector<std::string> &texts)
+std::vector<std::vector<float>> EmbeddingClient::generateBatchEmbeddings(const std::vector<std::string> &texts) const
 {
   std::vector<std::vector<float>> results;
   for (const auto &text : texts) {
@@ -143,7 +143,7 @@ std::string CompletionClient::generateCompletion(
   const nlohmann::json &messagesJson, 
   const std::vector<SearchResult> &searchRes, 
   float temperature,
-  std::function<void(const std::string &)> onStream)
+  std::function<void(const std::string &)> onStream) const
 {
 #ifdef CPPHTTPLIB_OPENSSL_SUPPORT
   httplib::SSLClient client(host_, port_);

@@ -281,7 +281,7 @@ void App::initialize()
   imp->processor_ = std::make_unique<SourceProcessor>(*imp->settings_);
   imp->updater_ = std::make_unique<IncrementalUpdater>(imp->db_.get());
 
-  imp->httpServer_ = std::make_unique<HttpServer>(*imp->chunker_, *imp->db_, *imp->embeddingClient_, *imp->completionClient_);
+  imp->httpServer_ = std::make_unique<HttpServer>(*this);
 }
 
 void App::embed()
@@ -464,6 +464,31 @@ void App::watch(int intervalSeconds)
   }
 }
 
+const Chunker &App::chunker() const
+{
+  return *imp->chunker_;
+}
+
+const VectorDatabase &App::db() const
+{
+  return *imp->db_;
+}
+
+VectorDatabase &App::db()
+{
+  return *imp->db_;
+}
+
+const EmbeddingClient &App::embeddingClient() const
+{
+  return *imp->embeddingClient_;
+}
+
+const CompletionClient &App::completionClient() const
+{
+  return *imp->completionClient_;
+}
+
 void App::printUsage()
 {
   std::cout << "Usage: embedder <command> [options]\n\n";
@@ -476,10 +501,19 @@ void App::printUsage()
   std::cout << "  clear              - Clear all data\n";
   std::cout << "  compact            - Reclaim deleted space\n";
   std::cout << "  chat               - Chat mode\n";
-  std::cout << "  serve [port]       - Start HTTP API server (default: 8081)\n";
-  std::cout << "\nOptions:\n";
+  std::cout << "  serve [options]    - Start HTTP API server\n";
+  std::cout << "\nServe options:\n";
+  std::cout << "  --port <port>      - Server port (default: 8081)\n";
+  std::cout << "  --watch [seconds]  - Enable auto-update (default: 60s)\n";
+  std::cout << "\nGeneral options:\n";
   std::cout << "  --config <path>    - Config file path (default: settings.json)\n";
   std::cout << "  --top <k>          - Number of results for search (default: 5)\n";
+  std::cout << "\nExamples:\n";
+  std::cout << "  embedder serve --port 8081 --watch 30\n";
+  std::cout << "  embedder serve --watch    # Use defaults\n";
+  std::cout << "  embedder watch 120    # Watch mode without server\n";
+  std::cout << std::endl;
+
   std::cout << std::endl;
 }
 

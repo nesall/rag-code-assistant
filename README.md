@@ -43,6 +43,13 @@ Search nearest neighbours
 Chat with LLM  
 ```./embedder chat```
 
+Server on custom port with auto-update  
+```./embedder serve --port 9000 --watch 60```
+
+Server without auto-update (manual trigger via /update endpoint)  
+```./embedder serve```
+
+
 
 ### REST API endpoints
 

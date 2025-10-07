@@ -6,7 +6,7 @@
 #include <httplib.h>
 
 
-std::vector<SourceProcessor::Data> SourceProcessor::getSources()
+std::vector<SourceProcessor::Data> SourceProcessor::getSources() const
 {
   std::vector<SourceProcessor::Data> allContent;
   auto sources = settings_.sources();
@@ -23,7 +23,7 @@ std::vector<SourceProcessor::Data> SourceProcessor::getSources()
   return allContent;
 }
 
-void SourceProcessor::processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content)
+void SourceProcessor::processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const
 {
   std::string path = source.path;
   bool recursive = source.recursive;
@@ -47,7 +47,7 @@ void SourceProcessor::processDirectory(const Settings::SourceItem &source, std::
   }
 }
 
-bool SourceProcessor::processDirItem(const Settings::SourceItem &source, const std::string &filepath, std::vector<SourceProcessor::Data> &content)
+bool SourceProcessor::processDirItem(const Settings::SourceItem &source, const std::string &filepath, std::vector<SourceProcessor::Data> &content) const
 {
   if (isExcluded(filepath, source.exclude)) return false;
   if (!source.extensions.empty() && !hasValidExtension(filepath, source.extensions)) return false;
@@ -55,7 +55,7 @@ bool SourceProcessor::processDirItem(const Settings::SourceItem &source, const s
   return true;
 }
 
-void SourceProcessor::processFile(const std::string &filepath, std::vector<SourceProcessor::Data> &content)
+void SourceProcessor::processFile(const std::string &filepath, std::vector<SourceProcessor::Data> &content) const
 {
   if (auto maxSize = settings_.filesMaxFileSizeMb(); 0 < maxSize) {
     try {
@@ -79,7 +79,7 @@ void SourceProcessor::processFile(const std::string &filepath, std::vector<Sourc
   }
 }
 
-void SourceProcessor::processUrl(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content)
+void SourceProcessor::processUrl(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const
 {
   std::string url = source.url;
   time_t timeout = static_cast<time_t>(source.urlTimeoutMs);

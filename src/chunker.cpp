@@ -74,7 +74,7 @@ Chunker::Chunker(SimpleTokenCounter &tok, size_t min_tok, size_t max_tok, float 
 #endif
 }
 
-std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string &uri, bool semantic)
+std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string &uri, bool semantic) const
 {
   std::vector<Chunk> chunks;
   std::string chunkType = detectContentType(text, uri);
@@ -123,7 +123,7 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
   return (code_indicators > total_lines * 0.3) ? "code" : "text";
 }
 
-std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks)
+std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks) const
 {
   std::vector<Chunk> processed;
   for (size_t i = 0; i < chunks.size(); ++i) {
@@ -143,7 +143,7 @@ std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks)
   return processed;
 }
 
-size_t Chunker::tokenCount(const std::string &text)
+size_t Chunker::tokenCount(const std::string &text) const
 {
   auto it = tokenCache_.find(text);
   if (it != tokenCache_.end()) {
@@ -154,7 +154,7 @@ size_t Chunker::tokenCount(const std::string &text)
   return count;
 }
 
-std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::string &uri)
+std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::string &uri) const
 {
   auto overlap = overlapTokens_;
   if (maxTokens_ * 0.6 < overlap) overlap = static_cast<size_t>(maxTokens_ * 0.6);
@@ -209,7 +209,7 @@ std::vector<Chunk> Chunker::splitIntoChunksAdv(std::string text, const std::stri
   return chunks;
 }
 
-std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const std::string &uri)
+std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const std::string &uri) const
 {
   std::vector<Chunk> chunks;
   std::vector<std::string> lines;
@@ -296,7 +296,7 @@ std::string Chunker::cleanTextForEmbedding(const std::string &text, const std::s
 }
 #endif
 
-std::vector<std::string> Chunker::splitIntoLines(const std::string &text)
+std::vector<std::string> Chunker::splitIntoLines(const std::string &text) const
 {
   std::vector<std::string> subs;
   auto nTokens = tokenCount(text);
@@ -310,7 +310,7 @@ std::vector<std::string> Chunker::splitIntoLines(const std::string &text)
   size_t currentTokens = 0;
   for (const auto &u : units) {
     size_t uTokens = tokenCount(u);
-    if (currentTokens + uTokens > maxTokens_ && !current.empty()) {
+    if (maxTokens_ < currentTokens + uTokens && !current.empty()) {
       if (!current.ends_with('\n')) current += '\n';
       subs.push_back(current);
       current.clear();

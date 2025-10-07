@@ -1,4 +1,5 @@
 #include "httpserver.h"
+#include "app.h"
 #include "chunker.h"
 #include "database.h"
 #include "inference.h"
@@ -6,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <cassert>
 #include <thread>
-#include <format>
+#include <exception>
 
 using json = nlohmann::json;
 
@@ -29,25 +30,22 @@ using json = nlohmann::json;
 
 
 struct HttpServer::Impl {
-  Impl(Chunker &c, VectorDatabase &d, EmbeddingClient &e, CompletionClient  &g)
-    : chunker_(c), db_(d), embeddingClient_(e), completionClient_(g)
+  Impl(App &a)
+    : app_(a)
   {
   }
 
   httplib::Server server_;
 
-  Chunker &chunker_;
-  VectorDatabase &db_;
-  EmbeddingClient &embeddingClient_;
-  CompletionClient &completionClient_;
+  App &app_;
 
   static int counter_;
 };
 
 int HttpServer::Impl::counter_ = 0;
 
-HttpServer::HttpServer(Chunker &c, VectorDatabase &d, EmbeddingClient &e, CompletionClient &g) 
-  : imp(new Impl(c, d, e, g))
+HttpServer::HttpServer(App &a) 
+  : imp(new Impl(a))
 {
   //imp->server_.new_task_queue = [] { return new httplib::ThreadPool(4); };
 }
@@ -74,9 +72,9 @@ bool HttpServer::startServer(int port)
       std::string query = request["query"].get<std::string>();
       size_t top_k = request.value("top_k", 5);
       std::vector<float> queryEmbedding;
-      imp->embeddingClient_.generateEmbeddings({ query }, queryEmbedding);
+      imp->app_.embeddingClient().generateEmbeddings({query}, queryEmbedding);
 
-      auto results = imp->db_.search(queryEmbedding, top_k);
+      auto results = imp->app_.db().search(queryEmbedding, top_k);
 
       json response = json::array();
       for (const auto &result : results) {
@@ -107,7 +105,7 @@ bool HttpServer::startServer(int port)
       std::string text = request["text"].get<std::string>();
 
       std::vector<float> embedding;
-      imp->embeddingClient_.generateEmbeddings({ text }, embedding);
+      imp->app_.embeddingClient().generateEmbeddings({text}, embedding);
 
       json response = {
           {"embedding", embedding},
@@ -131,17 +129,17 @@ bool HttpServer::startServer(int port)
       std::string content = request["content"].get<std::string>();
       std::string source_id = request["source_id"].get<std::string>();
 
-      auto chunks = imp->chunker_.chunkText(content, source_id);
+      auto chunks = imp->app_.chunker().chunkText(content, source_id);
 
       size_t inserted = 0;
       for (const auto &chunk : chunks) {
         std::vector<float> embedding;
-        imp->embeddingClient_.generateEmbeddings({ chunk.text }, embedding);
-        imp->db_.addDocument(chunk, embedding);
+        imp->app_.embeddingClient().generateEmbeddings({chunk.text}, embedding);
+        imp->app_.db().addDocument(chunk, embedding);
         inserted++;
       }
 
-      imp->db_.persist();
+      imp->app_.db().persist();
 
       json response = {
           {"status", "success"},
@@ -159,7 +157,7 @@ bool HttpServer::startServer(int port)
 
   server.Get("/stats", [this](const httplib::Request &, httplib::Response &res) {
     try {
-      auto stats = imp->db_.getStats();
+      auto stats = imp->app_.db().getStats();
 
       json sources_obj = json::object();
       for (const auto &[source, count] : stats.sources) {
@@ -205,8 +203,8 @@ bool HttpServer::startServer(int port)
       assert(role == "user");
 
       std::vector<float> embedding;
-      imp->embeddingClient_.generateEmbeddings({ question }, embedding);
-      auto results = imp->db_.search(embedding, 5);
+      imp->app_.embeddingClient().generateEmbeddings({question}, embedding);
+      auto results = imp->app_.db().search(embedding, 5);
 
 
       res.set_header("Content-Type", "text/event-stream");
@@ -218,7 +216,7 @@ bool HttpServer::startServer(int port)
         [this, messagesJson, results, temperature](size_t offset, httplib::DataSink &sink) {
           std::cout << "set_chunked_content_provider: in callback ...\n";
           try {
-            std::string context = imp->completionClient_.generateCompletion(
+            std::string context = imp->app_.completionClient().generateCompletion(
               messagesJson, results, temperature,
               [&sink](const std::string &streamedChunk) {
 #ifdef _DEBUG

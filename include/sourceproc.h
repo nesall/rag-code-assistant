@@ -17,15 +17,15 @@ private:
 
 public:
   SourceProcessor(Settings &s) : settings_(s) {}
-  std::vector<SourceProcessor::Data> getSources();
+  std::vector<SourceProcessor::Data> getSources() const;
 
 private:
-  void processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content);
-  bool processDirItem(const Settings::SourceItem &source, const std::string &filepath, std::vector<SourceProcessor::Data> &content);
-  void processFile(const std::string &filepath, std::vector<SourceProcessor::Data> &content);
-  void processUrl(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content);
-  bool isExcluded(const std::string &filepath, const std::vector<std::string> &patterns);
-  bool hasValidExtension(const std::string &filepath, const std::vector<std::string> &extensions);
+  void processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const;
+  bool processDirItem(const Settings::SourceItem &source, const std::string &filepath, std::vector<SourceProcessor::Data> &content) const;
+  void processFile(const std::string &filepath, std::vector<SourceProcessor::Data> &content) const;
+  void processUrl(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const;
+  static bool isExcluded(const std::string &filepath, const std::vector<std::string> &patterns);
+  static bool hasValidExtension(const std::string &filepath, const std::vector<std::string> &extensions);
 };
 
 #endif // _SOURCEPROC_H_

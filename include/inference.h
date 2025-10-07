@@ -29,11 +29,11 @@ protected:
 class EmbeddingClient : public InferenceClient {
 public:
   EmbeddingClient(const Settings &settings);
-  void generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding);
-  std::vector<std::vector<float>> generateBatchEmbeddings(const std::vector<std::string> &texts);
+  void generateEmbeddings(const std::vector<std::string> &texts, std::vector<float> &embedding) const;
+  std::vector<std::vector<float>> generateBatchEmbeddings(const std::vector<std::string> &texts) const;
 
 private:
-  float calculateL2Norm(const std::vector<float> &vec);
+  static float calculateL2Norm(const std::vector<float> &vec);
 };
 
 class CompletionClient : public InferenceClient {
@@ -43,7 +43,7 @@ public:
     const nlohmann::json &messages, 
     const std::vector<SearchResult> &searchRes, 
     float temperature,
-    std::function<void(const std::string &)> onStream);
+    std::function<void(const std::string &)> onStream) const;
 
 private:
 
