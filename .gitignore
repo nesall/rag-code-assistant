@@ -29,7 +29,28 @@ pids
 *.seed
 *.pid.lock
 # Miscellaneous
-/.vs
+.vscode/
+.vs
+.env
+.env.local
+# C++ (Visual Studio)
+*.obj
+*.exe
+*.pdb
+*.lib
+*.dll
+*.ilk
+*.idb
+*.pch
+*.sln.ide
+*.vs/
+*.vcxproj.user
+x64/
+Debug/
+Release/
+build/
+cmake/
+cmake-build/
 DS_Store
 Thumbs.db
 *.sublime*
