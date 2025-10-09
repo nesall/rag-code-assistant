@@ -1,6 +1,8 @@
 #include "inference.h"
+#include "app.h"
 #include "database.h"
 #include "settings.h"
+#include "tokenizer.h"
 #include <stdexcept>
 #include <iostream>
 #include <cmath>  // for std::sqrt
@@ -134,8 +136,10 @@ namespace {
   )" };
 } // anonymous namespace
 
-CompletionClient::CompletionClient(const Settings &ss)
-  : InferenceClient(ss.generationApiUrl(), ss.generationApiKey(), ss.generationModel(), ss.generationTimeoutMs())
+CompletionClient::CompletionClient(const App &a)
+  : InferenceClient(a.settings().generationApiUrl(), a.settings().generationApiKey(), a.settings().generationModel(), a.settings().generationTimeoutMs())
+  , app_(a)
+  , maxContextTokens_(a.settings().generationMaxContextTokens())
 {
 }
 
@@ -168,12 +172,27 @@ std::string CompletionClient::generateCompletion(
    }
   */
 
+  size_t nofTokens = app_.tokenizer().countTokensWithVocab(_queryTemplate);
+
   std::string question = messagesJson.back()["content"].get<std::string>();
 
   std::string context;
   for (const auto &r : searchRes) {
+    auto nt = app_.tokenizer().countTokensWithVocab(r.content);
+    if (maxContextTokens_ < nofTokens + nt) {
+      size_t remaining = maxContextTokens_ - nofTokens;
+      if (0 < remaining) {
+        size_t approxCharCount = r.content.length() * remaining / nt;
+        context += r.content.substr(0, approxCharCount) + "\n\n";
+        nofTokens += app_.tokenizer().countTokensWithVocab(r.content.substr(0, approxCharCount));
+      }
+      break;
+    }
+    nofTokens += nt;
     context += r.content + "\n\n";
   }
+
+  std::cout << "Generating completions with context length of " << nofTokens << " tokens \n";
 
   std::string prompt = _queryTemplate;
   size_t pos = prompt.find("__CONTEXT__");

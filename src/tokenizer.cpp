@@ -1,13 +1,9 @@
 #include "tokenizer.h"
 
-#include <algorithm>
 #include <vector>
 #include <string>
-#include <regex>
 #include <fstream>
 #include <sstream>
-#include <codecvt>
-#include <locale>
 
 using json = nlohmann::json;
 
@@ -21,7 +17,7 @@ namespace {
     return (c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0xF900 && c <= 0xFAFF);
   }
 
-  std::vector<uint32_t> utf8TuUtf32(const std::string &str) {
+  std::vector<uint32_t> utf8ToUtf32(const std::string &str) {
     std::vector<uint32_t> result;
     for (size_t i = 0; i < str.size();) {
       uint32_t codepoint = 0;
@@ -46,36 +42,40 @@ namespace {
       } else {
         i += 1; // Skip invalid byte
       }
-      result.push_back(codepoint);
+      if (codepoint != 0)
+        result.push_back(codepoint);
     }
     return result;
   }
 
-  std::string padChineseChars(const std::string &text) {
-    auto utf32_chars = utf8TuUtf32(text);
-    std::string result;
+  std::string uint32ToUtf8(uint32_t c) {
+    std::string res;
+    if (c < 0x80) {
+      res += static_cast<char>(c);
+    } else if (c < 0x800) {
+      res += static_cast<char>(0xC0 | (c >> 6));
+      res += static_cast<char>(0x80 | (c & 0x3F));
+    } else if (c < 0x10000) {
+      res += static_cast<char>(0xE0 | (c >> 12));
+      res += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+      res += static_cast<char>(0x80 | (c & 0x3F));
+    } else {
+      res += static_cast<char>(0xF0 | (c >> 18));
+      res += static_cast<char>(0x80 | ((c >> 12) & 0x3F));
+      res += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+      res += static_cast<char>(0x80 | (c & 0x3F));
+    }
+    return res;
+  }
 
-    for (auto c : utf32_chars) {
+  std::string padChineseChars(const std::string &text) {
+    auto utf32Chars = utf8ToUtf32(text);
+    std::string result;
+    for (auto c : utf32Chars) {
       if (isChineseChar(c)) {
-        result += " ";
-        if (c < 0x80) {
-          result += static_cast<char>(c);
-        } else if (c < 0x800) {
-          result += static_cast<char>(0xC0 | (c >> 6));
-          result += static_cast<char>(0x80 | (c & 0x3F));
-        } else if (c < 0x10000) {
-          result += static_cast<char>(0xE0 | (c >> 12));
-          result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-          result += static_cast<char>(0x80 | (c & 0x3F));
-        } else {
-          result += static_cast<char>(0xF0 | (c >> 18));
-          result += static_cast<char>(0x80 | ((c >> 12) & 0x3F));
-          result += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
-          result += static_cast<char>(0x80 | (c & 0x3F));
-        }
-        result += " ";
-      } else if (c < 0x80) {
-        result += static_cast<char>(c);
+        result += " " + uint32ToUtf8(c) + " ";
+      } else {
+        result += uint32ToUtf8(c);
       }
     }
     return result;
@@ -114,9 +114,9 @@ namespace {
 } // anonymous namespace
 
 
-SimpleTokenCounter::SimpleTokenCounter(const std::string &config_path)
+SimpleTokenCounter::SimpleTokenCounter(const std::string &configPath)
 {
-  std::ifstream file(config_path);
+  std::ifstream file(configPath);
   if (file.is_open()) {
     json jsonObj;
     file >> jsonObj;
@@ -173,10 +173,13 @@ size_t SimpleTokenCounter::simulateWordpiece(const std::string &word, bool addSp
   if (word.length() > maxInputCharsPerWord_) {
     return addSpecialTokens ? 1 : 0; // [UNK]
   }
-  auto it = cache_.find(word);
-  if (it != cache_.end()) {
-    return it->second;
+  
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = cache_.find(word); it != cache_.end())
+      return it->second;    
   }
+  
   size_t tokens = 0;
   size_t start = 0;
   while (start < word.length()) {
@@ -194,6 +197,10 @@ size_t SimpleTokenCounter::simulateWordpiece(const std::string &word, bool addSp
     tokens++;
     start = bestEnd;
   }
-  cache_[word] = tokens;
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cache_[word] = tokens;
+  }
   return tokens;
 }

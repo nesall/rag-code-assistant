@@ -12,8 +12,12 @@ class HttpServer {
 public:
   HttpServer(App &app);
   ~HttpServer();
-  bool startServer(int port);
+  bool startServer(int port, bool enableWatch = false, int watchInterval = 60);
   void stop();
+
+private:
+  void startWatch(int intervalSeconds);
+  void stopWatch();
 };
 
 #endif // _HTTPSERVER_H_

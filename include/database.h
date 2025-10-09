@@ -11,11 +11,12 @@
 struct SearchResult {
   std::string content;
   std::string sourceId;
+  std::string chunkUnit;
   std::string chunkType;
-  size_t startPos = 0;
-  size_t endPos = 0;
-  float similarityScore = 0;
   size_t chunkId = 0;
+  size_t start = 0;
+  size_t end = 0;
+  float similarityScore = 0;
 };
 
 
@@ -41,6 +42,8 @@ class VectorDatabase {
 protected:
   mutable std::mutex mutex_;
 public:
+  enum class DistanceMetric { L2, Cosine };
+
   virtual ~VectorDatabase() = default;
 
   virtual size_t addDocument(const Chunk &chunk, const std::vector<float> &embedding) = 0;
@@ -56,7 +59,6 @@ public:
   virtual void clear() = 0;
 
   virtual std::vector<FileMetadata> getTrackedFiles() const = 0;
-  virtual void upsertFileMetadata(const std::string &path, std::time_t mtime, size_t size) = 0;
   virtual void removeFileMetadata(const std::string &path) = 0;
 
   virtual DatabaseStats getStats() const = 0;
@@ -66,12 +68,19 @@ public:
   virtual void beginTransaction() = 0;
   virtual void commit() = 0;
   virtual void rollback() = 0;
+protected:
+  virtual void upsertFileMetadata(const std::string &path, std::time_t mtime, size_t size) = 0;
 };
 
 
 class HnswSqliteVectorDatabase : public VectorDatabase {
 public:
-  HnswSqliteVectorDatabase(const std::string &dbPath, const std::string &indexPath, size_t vectorDim, size_t maxElements = 100000);
+  HnswSqliteVectorDatabase(
+    const std::string &dbPath, 
+    const std::string &indexPath, 
+    size_t vectorDim, 
+    size_t maxElements = 100000,
+    VectorDatabase::DistanceMetric metric = VectorDatabase::DistanceMetric::Cosine);
   ~HnswSqliteVectorDatabase();
 
   size_t addDocument(const Chunk &chunk, const std::vector<float> &embedding) override;
@@ -86,7 +95,6 @@ public:
 
   size_t deleteDocumentsBySource(const std::string &sourceId) override;
   void removeFileMetadata(const std::string &sourceId) override;
-  void upsertFileMetadata(const std::string &sourceId, std::time_t mtime, size_t size) override;
   std::vector<FileMetadata> getTrackedFiles() const override;
 
   void beginTransaction() override { executeSql("BEGIN TRANSACTION"); }
@@ -95,6 +103,9 @@ public:
 
   void persist() override;
   void compact() override { compactIndex(); }
+
+protected:
+  void upsertFileMetadata(const std::string &sourceId, std::time_t mtime, size_t size) override;
 
 private:
   std::string dbPath() const;

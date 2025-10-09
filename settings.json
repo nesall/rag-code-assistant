@@ -8,22 +8,28 @@
     "batch_size": 32,
     "timeout_ms": 30000,
     "retry_attempts": 3,
+    "top_k":  5,
     "model": "text-embedding-3-small"
   },
   "generation": {
+    "api_url": "https://api.x.ai/v1/chat/completions",
     "api_url_": "https://api.deepseek.com/chat/completions",
-    "api_url": "https://api.openai.com/v1/chat/completions",
+    "api_url_1": "https://api.openai.com/v1/chat/completions",
     "api_url_2": "http://127.0.0.1:8585/v1/chat/completions",
-    "api_key": "${OPENAI_API_KEY}",
+    "api_key": "${XAI_API_KEY}",
     "timeout_ms": 60000,
     "model_": "deepseek-chat",
-    "model": "gpt-4o-mini"
+    "model_1": "gpt-4o-mini",
+    "model": "grok-4-fast-non-reasoning",
+    "max_context_tokens": 20000
   },
   "database": {
     "sqlite_path": "db_metadata.db",
     "index_path": "db_embeddings.index",
     "vector_dim": 768,
-    "max_elements": 100000
+    "max_elements": 100000,
+    "distance_metric": "cosine",
+    "distance_metric_": "l2"
   },
   "chunking": {
     "semantic": true,
@@ -35,7 +41,7 @@
   "sources": [
     {
       "type": "directory",
-      "path": "../../embedder_cpp/src",
+      "path": "../../embedder_cpp",
       "recursive": true,
       "extensions": [".cpp", ".h", ".hpp"],
       "exclude": ["*/build/*", "*/test/*"]
@@ -66,7 +72,7 @@
   ],
   "files": {
     "default_extensions": [".cpp", ".h", ".py", ".js", ".md"],
-    "global_exclude": ["*/node_modules/*", "*.min.js", "*.log"],
+    "global_exclude": [ "*/node_modules/*", "*.min.js", "*.log", "*/.git/*", ".gitignore" ],
     "encoding": "utf-8",
     "max_file_size_mb": 10
   },

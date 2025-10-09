@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 
+class App;
 class Settings;
 struct SearchResult;
 
@@ -37,8 +38,10 @@ private:
 };
 
 class CompletionClient : public InferenceClient {
+  const App &app_;
+  const size_t maxContextTokens_;
 public:
-  CompletionClient(const Settings &settings);
+  CompletionClient(const App &app);
   std::string generateCompletion(
     const nlohmann::json &messages, 
     const std::vector<SearchResult> &searchRes, 

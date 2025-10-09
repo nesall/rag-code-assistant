@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <stdexcept>
 #include <filesystem>
-#include <unordered_set>
 #include <format>
 #include "app.h"
 
@@ -30,7 +29,10 @@ namespace {
 
 struct HnswSqliteVectorDatabase::Impl {
   std::unique_ptr<hnswlib::HierarchicalNSW<float>> index_;
-  std::unique_ptr<hnswlib::L2Space> space_;
+  std::unique_ptr<hnswlib::SpaceInterface<float>> space_;
+  
+  DistanceMetric metric_;
+
   sqlite3 *db_ = nullptr;
 
   size_t vectorDim_ = 0;
@@ -40,9 +42,11 @@ struct HnswSqliteVectorDatabase::Impl {
 };
 
 
-HnswSqliteVectorDatabase::HnswSqliteVectorDatabase(const std::string &dbPath, const std::string &indexPath, size_t vectorDim, size_t maxElements)
+HnswSqliteVectorDatabase::HnswSqliteVectorDatabase(
+  const std::string &dbPath, const std::string &indexPath, size_t vectorDim, size_t maxElements, VectorDatabase::DistanceMetric metric)
   : imp(new Impl)
 {
+  imp->metric_ = metric;
   imp->dbPath_ = dbPath;
   imp->indexPath_ = indexPath;
   imp->vectorDim_ = vectorDim;
@@ -106,9 +110,20 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
   auto result = imp->index_->searchKnn(queryEmbedding.data(), topK);
   std::vector<SearchResult> searchResults;
   while (!result.empty()) {
-    auto [distance, label] = result.top();
-    result.pop();    
-    float similarity = 1.0f / (1.0f + distance);
+    const auto [distance, label] = result.top();
+    result.pop();
+
+    float similarity = 0;
+    if (imp->metric_ == DistanceMetric::Cosine) {
+      // InnerProduct returns negative dot product
+      // For normalized vectors: similarity = (1 + dot_product) / 2
+      // Or simply: similarity = -distance (if vectors normalized to [-1,1])
+      similarity = 1.0f - distance; // Higher = more similar
+    } else {
+      // L2 distance
+      similarity = 1.0f / (1.0f + distance);
+    }
+
     auto chunkData = getChunkMetadata(label);
     if (chunkData.has_value()) {
       SearchResult sr = chunkData.value();
@@ -117,8 +132,10 @@ std::vector<SearchResult> HnswSqliteVectorDatabase::search(const std::vector<flo
       searchResults.push_back(sr);
     }
   }
-
-  std::reverse(searchResults.begin(), searchResults.end());
+  std::sort(searchResults.begin(), searchResults.end(),
+    [](const SearchResult &a, const SearchResult &b) {
+      return a.similarityScore > b.similarityScore;
+    });
   return searchResults;
 }
 
@@ -180,6 +197,7 @@ void HnswSqliteVectorDatabase::initializeDatabase()
             end_pos INTEGER NOT NULL,
             token_count INTEGER NOT NULL,
             unit TEXT NOT NULL,
+            type TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     )";
@@ -199,11 +217,19 @@ void HnswSqliteVectorDatabase::initializeDatabase()
 void HnswSqliteVectorDatabase::initializeVectorIndex()
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (imp->metric_ == DistanceMetric::Cosine) {
+    imp->space_ = std::make_unique<hnswlib::InnerProductSpace>(imp->vectorDim_);
+  } else {
+    imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
+  }
   imp->space_ = std::make_unique<hnswlib::L2Space>(imp->vectorDim_);
   if (std::filesystem::exists(imp->indexPath_)) {
     try {
       imp->index_ = std::make_unique<hnswlib::HierarchicalNSW<float>>(imp->space_.get(), imp->indexPath_, false, imp->maxElements_, true);
-      std::cout << "Loaded index with " << imp->index_->getCurrentElementCount() << " total vectors, " << imp->index_->getDeletedCount() << " deleted" << std::endl;
+      std::cout << "Loaded index with " 
+        << (imp->metric_ == DistanceMetric::Cosine ? "Cosine" : "L2") << " distance, "
+        << imp->index_->getCurrentElementCount() << " total vectors, "
+        << imp->index_->getDeletedCount() << " deleted" << std::endl;
       return;
     } catch (const std::exception &e) {
       std::cerr << "Failed to load existing index: " << e.what() << std::endl;
@@ -215,7 +241,6 @@ void HnswSqliteVectorDatabase::initializeVectorIndex()
 
 void HnswSqliteVectorDatabase::executeSql(const std::string &sql)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   char *errorMessage = nullptr;
   int rc = sqlite3_exec(imp->db_, sql.c_str(), nullptr, nullptr, &errorMessage);
   if (rc != SQLITE_OK) {
@@ -227,10 +252,9 @@ void HnswSqliteVectorDatabase::executeSql(const std::string &sql)
 
 size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   const char *insertSql = R"(
-        INSERT INTO chunks (content, source_id, start_pos, end_pos, token_count, unit)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO chunks (content, source_id, start_pos, end_pos, token_count, unit, type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     )";
 
   sqlite3_stmt *stmt;
@@ -242,6 +266,7 @@ size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
   sqlite3_bind_int64(stmt, k++, chunk.metadata.end);
   sqlite3_bind_int64(stmt, k++, chunk.metadata.tokenCount);
   sqlite3_bind_text(stmt, k++, chunk.metadata.unit.c_str(), -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, k++, chunk.metadata.type.c_str(), -1, SQLITE_STATIC);
   int rc = sqlite3_step(stmt);
   if (rc != SQLITE_DONE) {
     sqlite3_finalize(stmt);
@@ -254,9 +279,8 @@ size_t HnswSqliteVectorDatabase::insertMetadata(const Chunk &chunk)
 
 std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t chunkId) const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   const char *selectSql = R"(
-        SELECT content, source_id, start_pos, end_pos 
+        SELECT content, source_id, unit, type, start_pos, end_pos
         FROM chunks WHERE id = ?
     )";
   sqlite3_stmt *stmt;
@@ -265,11 +289,13 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
   SearchResult result;
   bool found = false;
   if (sqlite3_step(stmt) == SQLITE_ROW) {
-    result.content = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
-    result.sourceId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-    result.chunkType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
-    result.startPos = sqlite3_column_int64(stmt, 3);
-    result.endPos = sqlite3_column_int64(stmt, 4);
+    int k = 0;
+    result.content = reinterpret_cast<const char *>(sqlite3_column_text(stmt, k++));
+    result.sourceId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, k++));
+    result.chunkUnit = reinterpret_cast<const char *>(sqlite3_column_text(stmt, k++));
+    result.chunkType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, k++));
+    result.start = sqlite3_column_int64(stmt, k++);
+    result.end = sqlite3_column_int64(stmt, k++);
     found = true;
   }
   _checkErr = sqlite3_finalize(stmt);
@@ -278,7 +304,6 @@ std::optional<SearchResult> HnswSqliteVectorDatabase::getChunkMetadata(size_t ch
 
 std::vector<size_t> HnswSqliteVectorDatabase::getChunkIdsBySource(const std::string &sourceId) const
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   std::vector<size_t> ids;
   sqlite3_stmt *stmt;
   const char *sql = "SELECT id FROM chunks WHERE source_id = ?";
@@ -327,7 +352,6 @@ void HnswSqliteVectorDatabase::removeFileMetadata(const std::string &filepath)
 
 void HnswSqliteVectorDatabase::upsertFileMetadata(const std::string &filepath, std::time_t mtime, size_t size)
 {
-  std::lock_guard<std::mutex> lock(mutex_);
   sqlite3_stmt *stmt;
   const char *sql = "INSERT OR REPLACE INTO files_metadata (path, last_modified, file_size) VALUES (?, ?, ?)";
   _checkErr = sqlite3_prepare_v2(imp->db_, sql, -1, &stmt, nullptr);

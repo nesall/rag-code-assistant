@@ -18,6 +18,7 @@ struct Chunk {
     size_t start;
     size_t end;
     std::string unit;
+    std::string type; // e.g. code or text
   } metadata;
 };
 
@@ -47,14 +48,14 @@ public:
   std::vector<Chunk> chunkText(const std::string &text, const std::string &uri = "", bool semantic = true) const;
 
 private:
-  static std::string detectContentType(const std::string &text, const std::string &uri);
-  std::vector<Chunk> postProcessChunks(std::vector<Chunk> &chunks) const;
+  std::vector<Chunk> postProcessChunks(std::vector<Chunk> &chunks, const std::string &chunkType) const;
   size_t tokenCount(const std::string &text) const;
   std::vector<Chunk> splitIntoChunksAdv(std::string text, const std::string &docId) const;
   std::vector<Chunk> splitIntoLineChunks(const std::string &text, const std::string &docId) const;
   std::vector<std::string> splitIntoLines(const std::string &text) const;
 
 public:
+  static std::string detectContentType(const std::string &text, const std::string &uri);
   static std::string normalizeWhitespaces(const std::string &str);
   //static std::string cleanTextForEmbedding(const std::string &text, const std::string &EMBED_PREPEND_PHRASE = "");
 };

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <set>
 #include "settings.h"
 
 
@@ -14,10 +15,12 @@ public:
   };
 private:
   Settings &settings_;
-
+  std::set<std::string> sources_; // last parsed files/urls
 public:
   SourceProcessor(Settings &s) : settings_(s) {}
-  std::vector<SourceProcessor::Data> getSources() const;
+  std::vector<SourceProcessor::Data> collectSources();
+  SourceProcessor::Data fetchSource(const std::string &uri) const;
+  static std::vector<std::string> filterRelatedSources(const std::vector<std::string> &sources, const std::string &src);
 
 private:
   void processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const;

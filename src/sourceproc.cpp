@@ -2,11 +2,12 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <filesystem>
 #include "settings.h"
 #include <httplib.h>
 
 
-std::vector<SourceProcessor::Data> SourceProcessor::getSources() const
+std::vector<SourceProcessor::Data> SourceProcessor::collectSources()
 {
   std::vector<SourceProcessor::Data> allContent;
   auto sources = settings_.sources();
@@ -20,26 +21,59 @@ std::vector<SourceProcessor::Data> SourceProcessor::getSources() const
       processUrl(source, allContent);
     }
   }
+  for (const auto &a : allContent) {
+    sources_.insert(a.source);
+  }
   return allContent;
+}
+
+SourceProcessor::Data SourceProcessor::fetchSource(const std::string &uri) const
+{
+  std::vector<SourceProcessor::Data> res;
+  auto sources = settings_.sources();
+  for (const auto &source : sources) {
+    if (source.type == "file" && source.path == uri) {
+      processFile(source.path, res);
+    } else if (source.type == "url" && source.url == uri) {
+      processUrl(source, res);
+    } else if (source.type == "directory") {
+      processDirItem(source, uri, res);
+    }
+    if (!res.empty()) break;
+  }
+  return res.empty() ? Data{} : res[0];
+}
+
+std::vector<std::string> SourceProcessor::filterRelatedSources(const std::vector<std::string> &sources, const std::string &uri)
+{
+  std::vector<std::string> res;
+  std::string base = std::filesystem::path(uri).stem().string();
+  for (const auto &s : sources) {
+    auto t = std::filesystem::path(s).stem().string();
+    if (t == base || t.find(base) != std::string::npos) {
+      res.push_back(s);
+    }
+  }
+  return res;
 }
 
 void SourceProcessor::processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const
 {
+  namespace fs = std::filesystem;
   std::string path = source.path;
-  bool recursive = source.recursive;
   const auto &extensions = source.extensions;
   const auto &exclude = source.exclude;
   try {
-    namespace fs = std::filesystem;
-    if (source.recursive) {
-      for (const auto &entry : fs::recursive_directory_iterator(path)) {
-        if (!entry.is_regular_file()) continue;
-        processDirItem(source, entry.path().string(), content);
-      }
-    } else {
-      for (const auto &entry : fs::directory_iterator(path)) {
-        if (!entry.is_regular_file()) continue;
-        processDirItem(source, entry.path().string(), content);
+    for (const auto &entry : fs::directory_iterator(path)) {
+      const auto entryPath = entry.path().string();
+      if (isExcluded(entryPath, exclude))
+        continue;
+      if (entry.is_directory() && source.recursive) {
+        Settings::SourceItem subSource = source;
+        subSource.path = entryPath;
+        processDirectory(subSource, content);
+      } else if (entry.is_regular_file()) {
+        processDirItem(source, entryPath, content);
       }
     }
   } catch (const std::exception &) {
@@ -107,9 +141,32 @@ void SourceProcessor::processUrl(const Settings::SourceItem &source, std::vector
 
 bool SourceProcessor::isExcluded(const std::string &filepath, const std::vector<std::string> &patterns)
 {
-  for (const auto &pattern : patterns) {
-    if (filepath.find(pattern.substr(2)) != std::string::npos) { // Skip "*/"
-      return true;
+  auto normalize = [](std::string s) {
+    std::replace(s.begin(), s.end(), '\\', '/');
+    return s;
+    };
+
+  auto path = std::filesystem::path(filepath).lexically_normal().generic_string();
+
+  if (std::filesystem::is_directory(path) && !path.ends_with('/')) {
+    path += '/';
+  }
+
+  for (const auto &p : patterns) {
+    std::string pattern = normalize(p);
+    if (pattern.empty()) continue;
+    if (pattern == "*") return true; // exclude all
+    if (pattern.front() == '*' && pattern.back() == '*') {
+      auto core = pattern.substr(1, pattern.length() - 2);
+      if (!core.empty() && path.find(core) != std::string::npos) return true;
+    } else if (pattern.front() == '*') {
+      auto core = pattern.substr(1);
+      if (!core.empty() && path.ends_with(core)) return true;
+    } else if (pattern.back() == '*') {
+      auto core = pattern.substr(0, pattern.length() - 1);
+      if (!core.empty() && path.starts_with(core)) return true;
+    } else {
+      if (path == pattern || std::filesystem::path(path).filename() == pattern) return true;
     }
   }
   return false;

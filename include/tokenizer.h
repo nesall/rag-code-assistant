@@ -2,9 +2,11 @@
 
 #include <string>
 #include <unordered_map>
+#include <mutex>
 #include "nlohmann/json.hpp"
 
 class SimpleTokenCounter {
+  mutable std::mutex mutex_;
   mutable std::unordered_map<std::string, size_t> cache_;
 private:
   nlohmann::json vocab_;

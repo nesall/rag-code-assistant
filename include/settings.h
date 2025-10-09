@@ -37,16 +37,19 @@ public:
   std::string embeddingModel() const { return config_["embedding"]["model"]; }
   size_t embeddingTimeoutMs() const { return config_["embedding"]["timeout_ms"]; }
   size_t embeddingBatchSize() const { return config_["embedding"]["batch_size"]; }
+  size_t embeddingTopK() const { return config_["embedding"]["top_k"]; }
 
   std::string generationApiUrl() const { return config_["generation"]["api_url"]; }
   std::string generationApiKey() const { return config_["generation"]["api_key"]; }
   std::string generationModel() const { return config_["generation"]["model"]; }
   size_t generationTimeoutMs() const { return config_["generation"]["timeout_ms"]; }
+  size_t generationMaxContextTokens() const { return config_["generation"].value("max_context_tokens", size_t(20000)); }
 
   std::string databaseSqlitePath() const { return config_["database"]["sqlite_path"]; }
   std::string databaseIndexPath() const { return config_["database"]["index_path"]; }
   size_t databaseVectorDim() const { return config_["database"]["vector_dim"]; }
   size_t databaseMaxElements() const { return config_["database"]["max_elements"]; }
+  std::string databaseDistanceMetric() const { return config_["database"]["distance_metric"]; }
   
   size_t filesMaxFileSizeMb() const { return config_["files"]["max_file_size_mb"]; }
   std::string filesEncoding() const { return config_["files"]["encoding"]; }

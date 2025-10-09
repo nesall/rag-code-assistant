@@ -18,6 +18,8 @@
 #include <thread>
 #include <stdexcept>
 #include <chrono>
+#include <ranges>
+#include <cctype>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -39,6 +41,22 @@ time_t utils::getFileModificationTime(const std::string &path)
   auto ftime = fs::last_write_time(path);
   auto sctp = std::chrono::clock_cast<std::chrono::system_clock>(ftime);
   return std::chrono::system_clock::to_time_t(sctp);
+}
+
+int utils::safeStoI(const std::string &s, int def)
+{
+  try {
+    return std::stoi(s);
+  } catch (...) {
+  }
+  return def;
+}
+
+std::string utils::trimmed(std::string_view sv)
+{
+  auto wsfront = std::find_if_not(sv.begin(), sv.end(), ::isspace);
+  auto wsback = std::find_if_not(sv.rbegin(), sv.rend(), ::isspace).base();
+  return (wsfront < wsback ? std::string(wsfront, wsback) : std::string{});
 }
 
 
@@ -165,8 +183,6 @@ namespace {
             db_->addDocument(chunk, embedding);
           }
 
-          // Add metadata
-          //db_->upsertFileMetadata(filepath, utils::getFileModificationTime(filepath), fs::file_size(filepath));
           totalUpdated++;
 
           std::cout << "  Added with " << chunks.size() << " chunks" << std::endl;
@@ -216,10 +232,6 @@ namespace {
     }
 
   private:
-    //void updateFileMetadata(const std::string &filepath) {
-    //  db_->upsertFileMetadata(filepath, utils::getFileModificationTime(filepath), fs::file_size(filepath)); // Same as add due to INSERT OR REPLACE
-    //}
-
     std::string readFile(const std::string &path) {
       std::ifstream file(path);
       if (!file.is_open()) {
@@ -244,7 +256,6 @@ struct App::Impl {
   std::unique_ptr<SourceProcessor> processor_;
   std::unique_ptr<IncrementalUpdater> updater_;
   std::unique_ptr<HttpServer> httpServer_;
-  //std::atomic<bool> serverRunning_{ false };
 };
 
 App::App(const std::string &configPath) : imp(new Impl)
@@ -265,11 +276,12 @@ void App::initialize()
   std::string indexPath = ss.databaseIndexPath();
   size_t vectorDim = ss.databaseVectorDim();
   size_t maxElements = ss.databaseMaxElements();
+  VectorDatabase::DistanceMetric metric = ss.databaseDistanceMetric() == "cosine" ? VectorDatabase::DistanceMetric::Cosine : VectorDatabase::DistanceMetric::L2;
 
-  imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements);
+  imp->db_ = std::make_unique<HnswSqliteVectorDatabase>(dbPath, indexPath, vectorDim, maxElements, metric);
 
   imp->embeddingClient_ = std::make_unique<EmbeddingClient>(ss);
-  imp->completionClient_ = std::make_unique<CompletionClient>(ss);
+  imp->completionClient_ = std::make_unique<CompletionClient>(*this);
 
   imp->tokenizer_ = std::make_unique<SimpleTokenCounter>(ss.tokenizerConfigPath());
 
@@ -287,7 +299,7 @@ void App::initialize()
 void App::embed()
 {
   std::cout << "Starting embedding process..." << std::endl;
-  auto sources = imp->processor_->getSources();
+  auto sources = imp->processor_->collectSources();
   size_t totalChunks = 0;
   size_t totalFiles = 0;
   size_t totalTokens = 0;
@@ -423,15 +435,15 @@ void App::chat()
   std::cout << "Exiting chat mode." << std::endl;
 }
 
-void App::serve(int port)
+void App::serve(int port, bool watch, int interval)
 {
-  imp->httpServer_->startServer(port);
+  imp->httpServer_->startServer(port, watch, interval);
 }
 
-bool App::update()
+size_t App::update()
 {
   std::cout << "Checking for changes..." << std::endl;
-  auto sources = imp->processor_->getSources();
+  auto sources = imp->processor_->collectSources();
   std::vector<std::string> currentFiles;
   for (const auto &source : sources) {
     currentFiles.push_back(source.source);
@@ -440,12 +452,12 @@ bool App::update()
   imp->updater_->printUpdateSummary(info);
   if (!imp->updater_->needsUpdate(info)) {
     std::cout << "\nNo updates needed. Database is up to date." << std::endl;
-    return false;
+    return 0;
   }
   std::cout << "\nApplying updates..." << std::endl;
   size_t updated = imp->updater_->updateDatabase(*imp->embeddingClient_, *imp->chunker_, info);
   std::cout << "\nUpdate completed! " << updated << " files processed." << std::endl;
-  return true;
+  return updated;
 }
 
 void App::watch(int intervalSeconds)
@@ -462,6 +474,21 @@ void App::watch(int intervalSeconds)
       std::cerr << "Error during update: " << e.what() << std::endl;
     }
   }
+}
+
+const Settings &App::settings() const
+{
+  return *imp->settings_;
+}
+
+const SimpleTokenCounter &App::tokenizer() const
+{
+  return *imp->tokenizer_;
+}
+
+const SourceProcessor &App::sourceProcessor() const
+{
+  return *imp->processor_;
 }
 
 const Chunker &App::chunker() const
@@ -543,11 +570,8 @@ int App::run(int argc, char *argv[])
     } else if (command == "watch") {
       int interval = 60;
       if (argc > 2) {
-        try {
-          interval = std::stoi(argv[2]);
-        } catch (...) {
-          std::cout << "Using default interval " << interval << "s\n";
-        }
+        interval = utils::safeStoI(argv[2], interval);
+        std::cout << "Using interval " << interval << "s\n";
       }
       app.watch(interval);
     } else if (command == "search") {
@@ -560,7 +584,7 @@ int App::run(int argc, char *argv[])
       for (int i = 3; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--top" && i + 1 < argc) {
-          topK = std::stoi(argv[++i]);
+          topK = utils::safeStoI(argv[++i]);
         }
       }
       app.search(query, topK);
@@ -574,14 +598,20 @@ int App::run(int argc, char *argv[])
       app.chat();
     } else if (command == "serve") {
       int port = 8081;
-      if (argc > 2) {
-        try {
-          port = std::stoi(argv[2]);
-        } catch (...) {
-          std::cout << "Using default port " << port << std::endl;
+      bool enableWatch = false;
+      int watchInterval = 60;
+      for (int i = 2; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--port" && i + 1 < argc) {
+          port = utils::safeStoI(argv[++i], port);
+        } else if (arg == "--watch") {
+          enableWatch = true;
+          if (i + 1 < argc && argv[i + 1][0] != '-') {
+            watchInterval = utils::safeStoI(argv[++i], watchInterval);
+          }
         }
       }
-      app.serve(port);
+      app.serve(port, enableWatch, watchInterval);
     } else {
       std::cerr << "Unknown command: " << command << std::endl;
       printUsage();

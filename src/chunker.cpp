@@ -83,7 +83,7 @@ std::vector<Chunk> Chunker::chunkText(const std::string &text, const std::string
   } else {
     chunks = splitIntoChunksAdv(text, uri);
   }
-  return postProcessChunks(chunks);
+  return postProcessChunks(chunks, chunkType);
 }
 
 std::string Chunker::detectContentType(const std::string &text, const std::string &uri)
@@ -123,11 +123,12 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
   return (code_indicators > total_lines * 0.3) ? "code" : "text";
 }
 
-std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks) const
+std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks, const std::string &chunkType) const
 {
   std::vector<Chunk> processed;
   for (size_t i = 0; i < chunks.size(); ++i) {
     Chunk &chunk = chunks[i];
+    chunk.metadata.type = chunkType;
     if (chunk.metadata.tokenCount < minTokens_ && i + 1 < chunks.size()) {
       Chunk &next_chunk = chunks[i + 1];
       size_t combined_tokens = tokenCount(chunk.text + next_chunk.text);
@@ -236,7 +237,8 @@ std::vector<Chunk> Chunker::splitIntoLineChunks(const std::string &text, const s
       end++;
     }
     if (start < end) {
-      std::string raw = text.substr(start, end - start);
+      std::string raw;
+      for (size_t i = start; i < end; i++) raw += lines[i];
       chunks.push_back({
           uri,
           uri + "_" + std::to_string(chunkId++),
