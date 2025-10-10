@@ -3,7 +3,8 @@
   import Checkbox from "./Checkbox.svelte";
   import { Modal } from "@skeletonlabs/skeleton-svelte";
   import { onMount, tick } from "svelte";
-  import { bytesToSize } from "../utils";
+  import { bytesToSize, hash } from "../utils";
+  import { fade, fly, slide } from "svelte/transition";
 
   interface Props {
     loading: boolean;
@@ -36,6 +37,7 @@
           _checked:
             saved.find((d: any) => d.path === doc.path)?._checked || false,
         }));
+        onChange(documents.filter((d) => d._checked).map((d) => d.path));
       })
       .catch((error) => {
         console.error("Error fetching context files:", error);
@@ -57,11 +59,6 @@
 
   async function modalClose() {
     openState = false;
-    await tick();
-    documents = documents.map((doc) => ({
-      ...doc,
-      _checked: doc._visible || doc._checked,
-    }));
     onChange(documents.filter((d) => d._checked).map((d) => d.path));
     saveToSession();
   }
@@ -72,7 +69,6 @@
     documents[i]._visible = false;
     documents[i]._checked = false;
     documents = documents;
-    console.log("After removal:", documents);
     onChange(documents.filter((d) => d._checked).map((d) => d.path));
     saveToSession();
   }
@@ -97,15 +93,17 @@
     <icons.Plus size={16} />Add context
   </button>
   {#each documents.filter((d) => d._visible) as doc, i (doc.path)}
-    <Checkbox
-      name={doc._name}
-      bind:checked={documents[i]._checked}
-      title={doc.path}
-      {loading}
-      id={i.toString()}
-      onToggle={(b: boolean) => onToggle(doc.path, b)}
-      onClose={() => onClose(doc.path)}
-    />
+    <div transition:fly={{ y: 10, duration: 150 }} class="relative2">
+      <Checkbox
+        name={doc._name}
+        checked={doc._checked}
+        title={doc.path}
+        {loading}
+        id={String(hash(doc.path))}
+        onToggle={(b: boolean) => onToggle(doc.path, b)}
+        onClose={() => onClose(doc.path)}
+      />
+    </div>
   {/each}
 </div>
 
@@ -144,6 +142,11 @@
                 class="checkbox w-4 h-4 p-0 m-0 accent-primary-500"
                 id={`document-checkbox-${i}`}
                 bind:checked={documents[i]._visible}
+                onchange={(e: Event) => {
+                  doc._checked = (
+                    (e as InputEvent).target as HTMLInputElement
+                  )?.checked;
+                }}
                 disabled={loading}
               />
               <label

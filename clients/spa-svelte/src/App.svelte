@@ -1,6 +1,6 @@
 <script lang="ts">
-  import svelteLogo from "./assets/svelte.svg";
-  import viteLogo from "/vite.svg";
+  // import svelteLogo from "./assets/svelte.svg";
+  // import viteLogo from "/vite.svg";
   import ChatPanel from "./lib/widgets/ChatPanel.svelte";
   import { Toaster } from "@skeletonlabs/skeleton-svelte";
   import { toaster } from "./lib/utils";

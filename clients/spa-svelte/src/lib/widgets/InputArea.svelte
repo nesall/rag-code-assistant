@@ -4,20 +4,28 @@
   import ContextFiles from "./ContextFiles.svelte";
 
   interface Props {
-    onSendMessage: (message: string, attachments: File[]) => void;
+    onSendMessage: (
+      message: string,
+      attachments: File[],
+      filenames: string[],
+    ) => void;
     loading: boolean;
   }
 
-  let { loading = false, onSendMessage = (s: string) => {} }: Props = $props();
+  let { loading = false, onSendMessage }: Props = $props();
 
   let input = $state("What does the increment operator in C++ do?");
 
   let attachments: File[] = $state([]);
+  let filenames: string[] = [];
 
-  function sendMessage(e: Event) {
+  function onSubmit(e: Event) {
     e.preventDefault();
-    if (input.trim() || 0 < attachments.length) {
-      onSendMessage(input.trim(), attachments);
+    if (
+      onSendMessage &&
+      (input.trim() || 0 < attachments.length || 0 < filenames.length)
+    ) {
+      onSendMessage(input.trim(), attachments, filenames);
       input = "";
       attachments = [];
     }
@@ -26,16 +34,20 @@
   function onTextereaKeyDown(ke: KeyboardEvent) {
     if (ke.key === "Enter" && !ke.shiftKey) {
       ke.preventDefault();
-      sendMessage(ke);
+      onSubmit(ke);
     }
   }
 
   function onContextFiles(files: string[]) {
-    console.log("Context files changed:", files);
+    filenames = [...files];
+  }
+
+  function onAttachments(files: File[]) {
+    attachments = [...files];
   }
 </script>
 
-<form class="flex flex-col space-y-2 w-full" onsubmit={sendMessage}>
+<form class="flex flex-col space-y-2 w-full" onsubmit={onSubmit}>
   <div
     class="flex flex-col rounded-xl border-1 p-3 pb-3 w-full bg-surface-50-950 border-surface-200-800 relative"
     role="presentation"
@@ -65,7 +77,7 @@
       </div>
     </div>
     <div class="absolute2 left2-1 bottom2-1 flex flex-col space-y-2">
-      <FileAttachments bind:attachments {loading} />
+      <FileAttachments {loading} bind:attachments />
       <ContextFiles {loading} onChange={onContextFiles} />
     </div>
   </div>

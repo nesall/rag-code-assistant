@@ -3,15 +3,20 @@
 
   interface Props {
     loading: boolean;
+    // onChange: (files: File[]) => void;
     attachments: File[];
   }
-
   let { loading = false, attachments = $bindable([]) }: Props = $props();
+
+  // let attachments: File[] = $state([]);
 
   function onFileChange(e: Event) {
     const inputEl = e.target as HTMLInputElement;
     if (inputEl.files) {
       attachments = [...attachments, ...Array.from(inputEl.files)].flat();
+      // if (onChange) {
+      //   onChange(attachments);
+      // }
       // Clear the input value to allow re-uploading the same file if needed
       inputEl.value = "";
     }

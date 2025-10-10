@@ -19,6 +19,10 @@
     onClose,
     onToggle = (b: boolean) => {},
   }: Props = $props();
+
+  $effect(() => {
+    // console.log("Checkbox:", { name, checked, loading });
+  });
 </script>
 
 <div

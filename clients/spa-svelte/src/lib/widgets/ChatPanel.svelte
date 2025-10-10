@@ -92,6 +92,8 @@
     if (messages) checkMessagesEndVisibility();
   });
 
+  let sourceidsLastUsed: string[] = [];
+
   function testServerConnection() {
     fetch("/api/health")
       .then((res) => {
@@ -106,24 +108,31 @@
       });
   }
 
-  function onSendMessage(message: string, attachments: File[]) {
+  function onSendMessage(
+    message: string,
+    attachments: File[],
+    sourceids: string[],
+  ) {
     if (!message.trim() && attachments.length === 0) return;
+    sourceidsLastUsed = [...sourceids];
+    message = message.trim();
     if (attachments.length === 0) {
-      sendMessage(message, "", true);
+      sendMessage(message, [], sourceids, true);
     } else {
-      let atts = "";
+      let atts: { filename: string; content: string }[] = [];
       for (const file of attachments) {
         const reader = new FileReader();
         reader.onload = () => {
           const content = reader.result;
           if (typeof content === "string") {
-            atts += `\n\n[Attachment: ${file.name}]\n${content}\n[/Attachment]`;
+            // atts += `\n\n[Attachment: ${file.name}]\n${content}\n[/Attachment]`;
+            atts.push({ filename: file.name, content });
           }
         };
         reader.onloadend = () => {
           if (attachments.indexOf(file) === attachments.length - 1) {
             console.log("Final input with attachments ready!");
-            sendMessage(message, atts, true);
+            sendMessage(message, atts, sourceids, true);
           }
         };
         reader.readAsText(file);
@@ -176,19 +185,24 @@
     return fullResponse;
   }
 
-  async function sendMessage(input: string, atts: string, appendQ = true) {
+  async function sendMessage(
+    input: string,
+    attachments: { filename: string; content: string }[],
+    sourceids: string[],
+    appendQ = true,
+  ) {
     if (loading) return;
     loading = true;
     started = false;
     if (appendQ) {
       if (!input.trim()) return;
-      const _userMessage = input.trim();
+      // const _userMessage = input.trim();
       messages = [
         ...messages,
         {
           role: "user",
-          _userMessage,
-          content: _userMessage + "\n\n" + atts,
+          // _userMessage,
+          content: input.trim(),
           _html: "",
         },
       ];
@@ -197,12 +211,17 @@
     }
 
     try {
+      console.log("Sending message to server...", {
+        messages,
+        attachments,
+        sourceids,
+      });
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, attachments, sourceids }),
       });
       if (!response.ok) {
         throw new Error("Failed to send message");
@@ -285,7 +304,7 @@
       const userMsg = messages[index - 1];
       if (userMsg && userMsg.role === "user") {
         messages = messages.slice(0, index);
-        sendMessage(userMsg.content, "", false);
+        sendMessage(userMsg.content, [], sourceidsLastUsed, false);
       } else {
         toaster.error({
           title: "Unpredicted error occurred when retrying an answer.",
