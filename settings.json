@@ -21,6 +21,9 @@
     "model_": "deepseek-chat",
     "model_1": "gpt-4o-mini",
     "model": "grok-4-fast-non-reasoning",
+    "max_chunks": 7,
+    "max_full_sources": 2,
+    "max_related_per_source": 3,
     "max_context_tokens": 20000
   },
   "database": {

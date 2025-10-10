@@ -44,11 +44,14 @@ SourceProcessor::Data SourceProcessor::fetchSource(const std::string &uri) const
   return res.empty() ? Data{} : res[0];
 }
 
-std::vector<std::string> SourceProcessor::filterRelatedSources(const std::vector<std::string> &sources, const std::string &uri)
+std::vector<std::string> SourceProcessor::filterRelatedSources(const std::vector<std::string> &sources, const std::string &uri) const
 {
   std::vector<std::string> res;
   std::string base = std::filesystem::path(uri).stem().string();
+  const auto maxPerSource = settings_.generationMaxRelatedPerSource();
   for (const auto &s : sources) {
+    if (res.size() == maxPerSource) break;
+    if (std::filesystem::path(uri) == std::filesystem::path(s)) continue;
     auto t = std::filesystem::path(s).stem().string();
     if (t == base || t.find(base) != std::string::npos) {
       res.push_back(s);

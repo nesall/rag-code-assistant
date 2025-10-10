@@ -20,7 +20,7 @@ public:
   SourceProcessor(Settings &s) : settings_(s) {}
   std::vector<SourceProcessor::Data> collectSources();
   SourceProcessor::Data fetchSource(const std::string &uri) const;
-  static std::vector<std::string> filterRelatedSources(const std::vector<std::string> &sources, const std::string &src);
+  std::vector<std::string> filterRelatedSources(const std::vector<std::string> &sources, const std::string &src) const;
 
 private:
   void processDirectory(const Settings::SourceItem &source, std::vector<SourceProcessor::Data> &content) const;

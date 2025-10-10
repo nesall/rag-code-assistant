@@ -17,21 +17,49 @@
 using json = nlohmann::json;
 
 
+namespace {
 
-//auto testStreaming = [](std::function<void(const std::string &)> onChunk)
-//  {
-//    for (int i = 0; i < 25; ++i) {
-//      std::this_thread::sleep_for(std::chrono::milliseconds(250));
-//      std::ostringstream oss;
-//      oss << "thread ";
-//      oss << std::this_thread::get_id();
-//      oss << ", chunk ";
-//      oss << std::to_string(i);
-//      oss << "\n\n";
-//      onChunk(oss.str());
-//    }
-//  };
+  //auto testStreaming = [](std::function<void(const std::string &)> onChunk)
+  //  {
+  //    for (int i = 0; i < 25; ++i) {
+  //      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  //      std::ostringstream oss;
+  //      oss << "thread ";
+  //      oss << std::this_thread::get_id();
+  //      oss << ", chunk ";
+  //      oss << std::to_string(i);
+  //      oss << "\n\n";
+  //      onChunk(oss.str());
+  //    }
+  //  };
 
+  struct Attachment {
+    std::string filename;
+    std::string content;
+  };
+
+  std::vector<Attachment> parseAttachments(const json &attachmentsJson) {
+    std::vector<Attachment> res;
+    if (!attachmentsJson.is_array()) return res;
+    for (const auto &item : attachmentsJson) {
+      if (!item.is_object()) continue;
+      if (!item.contains("content") || !item["content"].is_string()) {
+        continue;
+      }
+      Attachment a;
+      if (item.contains("filename") && item["filename"].is_string()) {
+        a.filename = item["filename"].get<std::string>();
+      }
+      a.content = item["content"].get<std::string>();
+      if (!a.filename.empty()) {
+        a.content = "[Attachment: " + a.filename + "]\n" + a.content + "\n[/Attachment]";
+      }
+      res.push_back(std::move(a));
+    }
+    return res;
+  }
+
+} // anonymous namespace
 
 
 struct HttpServer::Impl {
@@ -224,120 +252,156 @@ bool HttpServer::startServer(int port, bool enableWatch, int watchInterval)
   server.Post("/api/chat", [this](const httplib::Request &req, httplib::Response &res) {
     try {
       std::cout << "POST /api/chat\n";
-      json request = json::parse(req.body);
-      float temperature = request.value("temperature", 0.5f);
       // format for messages field in request
       /*
+      {
+        "temperature": 0.2,
         "messages": [
           {"role": "system", "content": "Keep it short."},
           {"role": "user", "content": "What is the capital of France?"}
         ],
+        "sourceids": [
+          "../embedder_cpp/src/main.cpp", "../embedder_cpp/include/settings.h"
+        ],
+        "attachments": [
+          { "filename": "filename1.cpp", "content": "..text file content 1.."},
+          { "filename": "filename2.cpp", "content": "..text file content 2.."},
+        ]
+      }  
       */
-      auto messagesJson = request["messages"];
-      // Fetch content of the last message
-      assert(0 < messagesJson.size());
-      std::string role = messagesJson.back()["role"].get<std::string>();
-      std::string question = messagesJson.back()["content"].get<std::string>();
-
-
-      std::string attachments;
-      const size_t a = question.find("[Attachment: ");
-      if (a != std::string::npos) {
-        size_t b = question.rfind("[/Attachment]");
-        if (b == std::string::npos) {
-          b = question.length() - 1;
-        }
-        attachments = utils::trimmed(question.substr(a, b + std::string("[/Attachment]").length()));
-        question = utils::trimmed(question.substr(0, a));
+      json request = json::parse(req.body);
+      if (!request.contains("messages") || !request["messages"].is_array() || request["messages"].empty()) {
+        throw std::invalid_argument("'messages' field required and must be non-empty array");
+      }
+      const auto messagesJson = request["messages"];
+      if (0 == messagesJson.size()) {
+        throw std::invalid_argument("'messages' array must be non-empty");
+      }
+      if (!messagesJson.back().contains("role") || !messagesJson.back().contains("content")) {
+        throw std::invalid_argument("Last message must have 'role' and 'content' fields");
       }
 
-      // Last message is always from user
-      assert(role == "user");
+      std::string role = messagesJson.back()["role"];
+      if (role != "user") {
+        throw std::invalid_argument("Last message role must be 'user', got: " + role);
+      }
+      const float temperature = request.value("temperature", 0.5f);
+      std::string question = messagesJson.back()["content"].get<std::string>();
 
-      std::vector<SearchResult> results;
-      if (!attachments.empty()) {
-        results.push_back({
-            attachments,
-            "attachment",
-            "char",
-            Chunker::detectContentType(attachments, ""),
-            0, // chunkId
-            0,
-            attachments.length(),
-            1.0f
+      auto attachmentsJson = request["attachments"];
+      auto attachments = parseAttachments(attachmentsJson);
+
+      std::vector<SearchResult> orderedResults;
+      std::vector<SearchResult> attachmentResults;
+      std::vector<SearchResult> fullSourceResults;
+      std::vector<SearchResult> relatedSrcResults;
+      std::vector<SearchResult> filteredChunkResults;
+
+      for (const auto &att : attachments) {
+        attachmentResults.push_back({
+          att.content,
+          att.filename.empty() ? "attachment" : att.filename,
+          "char",
+          Chunker::detectContentType(att.content, ""),
+          -1ull, // chunkId
+          0,
+          att.content.size(),
+          1.0f
           });
       }
 
-      std::unordered_map<std::string, size_t> sourcesRank;
-      auto questionChunks = imp->app_.chunker().chunkText(question, "", false);
+      std::unordered_map<std::string, float> sourcesRank;
+      const auto questionChunks = imp->app_.chunker().chunkText(question, "", false);
       for (const auto &qc : questionChunks) {
         std::vector<float> embedding;
         imp->app_.embeddingClient().generateEmbeddings({ qc.text }, embedding);
         auto res = imp->app_.db().search(embedding, imp->app_.settings().embeddingTopK());
-        results.insert(results.end(), res.begin(), res.end());
+        filteredChunkResults.insert(filteredChunkResults.end(), res.begin(), res.end());
         for (const auto &r : res) {
-          sourcesRank[r.sourceId] += 1;
+          sourcesRank[r.sourceId] += r.similarityScore;
         }
       }
 
-      std::sort(results.begin(), results.end(), [&sourcesRank](const SearchResult &a, const SearchResult &b) {
+      std::sort(filteredChunkResults.begin(), filteredChunkResults.end(), [&sourcesRank](const SearchResult &a, const SearchResult &b) {
         return sourcesRank[a.sourceId] > sourcesRank[b.sourceId];
         });
+
+      const auto maxFullSources = imp->app_.settings().generationMaxFullSources();
       std::set<std::string> sources;
-      for (const auto r : results) {
+      for (const auto r : filteredChunkResults) {
         sources.insert(r.sourceId);
-        if (sources.size() == 2) break;
+        if (sources.size() == maxFullSources) break;
       }
 
-      std::set<std::string> fullSources;
+      if (request.contains("sourceids")) {
+        auto sourceidsJson = request["sourceids"];
+        for (const auto &sid : sourceidsJson) {
+          if (sid.is_string()) {
+            sources.insert(sid.get<std::string>());
+          }
+        }
+      }
+
+      const auto trackedFiles = imp->app_.db().getTrackedFiles();
+      std::vector<std::string> trackedSources;
+      for (const auto &tf : trackedFiles) {
+        trackedSources.push_back(tf.path);
+      }
+
+      std::set<std::string> allFullSources{ sources };
+      std::set<std::string> relSources;
+      for (const auto &src : sources) {
+        auto relations = imp->app_.sourceProcessor().filterRelatedSources(trackedSources, src);
+        if (!allFullSources.contains(src)) {
+          relSources.insert(relations.begin(), relations.end());
+          allFullSources.insert(relations.begin(), relations.end());
+        }
+      }
 
       for (const auto &src : sources) {
         auto data = imp->app_.sourceProcessor().fetchSource(src);
         if (!data.content.empty()) {
-          results.push_back({
+          fullSourceResults.push_back({
               data.content,
               src,
               "char",
-              Chunker::detectContentType(src, ""),
+              Chunker::detectContentType(data.content, ""),
               -1ull, // chunkId
               0,
               data.content.length(),
               1.0f
             });
-          fullSources.insert(src);
-          auto trackedFiles = imp->app_.db().getTrackedFiles();
-          std::vector<std::string> trackedSources;
-          for (const auto &tf : trackedFiles) {
-            trackedSources.push_back(tf.path);
-          }
-          auto relations = SourceProcessor::filterRelatedSources(trackedSources, src);
-          for (const auto &rel : relations) {
-            if (sources.find(rel) == sources.end()) {
-              auto rdata = imp->app_.sourceProcessor().fetchSource(rel);
-              if (!rdata.content.empty()) {
-
-                results.push_back({
-                    rdata.content,
-                    rel,
-                    "char",
-                    Chunker::detectContentType(src, ""),
-                    -1ull,
-                    0,
-                    rdata.content.length(),
-                    1.0f,
-                  });
-                sources.insert(rel);
-                fullSources.insert(rel);
-              }
-            }
-          }
+        }
+      }
+      for (const auto &rel : relSources) {
+        auto data = imp->app_.sourceProcessor().fetchSource(rel);
+        if (!data.content.empty()) {
+          relatedSrcResults.push_back({
+              data.content,
+              rel,
+              "char",
+              Chunker::detectContentType(data.content, ""),
+              -1ull,
+              0,
+              data.content.length(),
+              1.0f,
+            });
         }
       }
 
-      results.erase(std::remove_if(results.begin(), results.end(),
-        [&fullSources](const SearchResult &r) {
-          return fullSources.find(r.sourceId) != fullSources.end() && r.chunkId != -1ull;
-        }), results.end());
+      filteredChunkResults.erase(std::remove_if(filteredChunkResults.begin(), filteredChunkResults.end(),
+        [&allFullSources](const SearchResult &r) {
+          return allFullSources.find(r.sourceId) != allFullSources.end() && r.chunkId != -1ull;
+        }), filteredChunkResults.end());
+
+      // Assemble final ordered results
+      orderedResults.insert(orderedResults.end(), attachmentResults.begin(), attachmentResults.end());
+      orderedResults.insert(orderedResults.end(), fullSourceResults.begin(), fullSourceResults.end());
+      orderedResults.insert(orderedResults.end(), relatedSrcResults.begin(), relatedSrcResults.end());
+      orderedResults.insert(orderedResults.end(), filteredChunkResults.begin(), filteredChunkResults.end());
+      if (imp->app_.settings().generationMaxChunks() < orderedResults.size()) {
+        orderedResults.resize(imp->app_.settings().generationMaxChunks());
+      }
 
       res.set_header("Content-Type", "text/event-stream");
       res.set_header("Cache-Control", "no-cache");
@@ -345,11 +409,11 @@ bool HttpServer::startServer(int port, bool enableWatch, int watchInterval)
 
       res.set_chunked_content_provider(
         "text/event-stream",
-        [this, messagesJson, results, temperature](size_t offset, httplib::DataSink &sink) {
+        [this, messagesJson, orderedResults, temperature](size_t offset, httplib::DataSink &sink) {
           //std::cout << "set_chunked_content_provider: in callback ...\n";
           try {
             std::string context = imp->app_.completionClient().generateCompletion(
-              messagesJson, results, temperature,
+              messagesJson, orderedResults, temperature,
               [&sink](const std::string &chunk) {
 #ifdef _DEBUG
                 //std::cout << chunk;
@@ -382,52 +446,52 @@ bool HttpServer::startServer(int port, bool enableWatch, int watchInterval)
         }
       );
 
-    } catch (const std::exception &e) {
-      json error = { {"error", e.what()} };
-      res.status = 400;
-      res.set_content(error.dump(), "application/json");
+      } catch (const std::exception &e) {
+        json error = { {"error", e.what()} };
+        res.status = 400;
+        res.set_content(error.dump(), "application/json");
+      }
+    });
+
+    server.Get("/api", [](const httplib::Request &, httplib::Response &res) {
+      std::cout << "GET /api\n";
+      json info = {
+          {"name", "Embeddings RAG API"},
+          {"version", "1.0.0"},
+          {"endpoints", {
+              {"GET /api/health", "Health check"},
+              {"GET /api/documents", "Get documents"},
+              {"GET /api/stats", "Database statistics"},
+              {"POST /api/search", "Semantic search"},
+              {"POST /api/chat", "Chat with context (streaming)"},
+              {"POST /api/embed", "Generate embeddings"},
+              {"POST /api/documents", "Add documents"},
+              {"POST /api/update", "Trigger manual update"},
+          }}
+      };
+      res.set_content(info.dump(2), "application/json");
+      });
+
+    std::cout << "Starting HTTP API server on port " << port << "...\n";
+
+    if (enableWatch) {
+      startWatch(watchInterval);
+      std::cout << "  Auto-update: enabled (every " << watchInterval << "s)\n";
+    } else {
+      std::cout << "  Auto-update: disabled\n";
     }
-    });
 
-  server.Get("/api", [](const httplib::Request &, httplib::Response &res) {
-    std::cout << "GET /api\n";
-    json info = {
-        {"name", "Embeddings RAG API"},
-        {"version", "1.0.0"},
-        {"endpoints", {
-            {"GET /api/health", "Health check"},
-            {"GET /api/documents", "Get documents"},
-            {"GET /api/stats", "Database statistics"},
-            {"POST /api/search", "Semantic search"},
-            {"POST /api/chat", "Chat with context (streaming)"},
-            {"POST /api/embed", "Generate embeddings"},
-            {"POST /api/documents", "Add documents"},
-            {"POST /api/update", "Trigger manual update"},
-        }}
-    };
-    res.set_content(info.dump(2), "application/json");
-    });
+    std::cout << "\nEndpoints:\n";
+    std::cout << "  GET  /api/health\n";
+    std::cout << "  GET  /api/stats\n";
+    std::cout << "  GET  /api/documents\n";
+    std::cout << "  POST /api/search    - {\"query\": \"...\", \"top_k\": 5}\n";
+    std::cout << "  POST /api/embed     - {\"text\": \"...\"}\n";
+    std::cout << "  POST /api/documents - {\"content\": \"...\", \"source_id\": \"...\"}\n";
+    std::cout << "  POST /api/chat      - {\"messages\":[\"role\":\"...\", \"content\":\"...\"], \"temperature\": \"...\"}\n";
+    std::cout << "\nPress Ctrl+C to stop\n";
 
-  std::cout << "Starting HTTP API server on port " << port << "...\n";
-
-  if (enableWatch) {
-    startWatch(watchInterval);
-    std::cout << "  Auto-update: enabled (every " << watchInterval << "s)\n";
-  } else {
-    std::cout << "  Auto-update: disabled\n";
-  }
-
-  std::cout << "\nEndpoints:\n";
-  std::cout << "  GET  /api/health\n";
-  std::cout << "  GET  /api/stats\n";
-  std::cout << "  GET  /api/documents\n";
-  std::cout << "  POST /api/search    - {\"query\": \"...\", \"top_k\": 5}\n";
-  std::cout << "  POST /api/embed     - {\"text\": \"...\"}\n";
-  std::cout << "  POST /api/documents - {\"content\": \"...\", \"source_id\": \"...\"}\n";
-  std::cout << "  POST /api/chat      - {\"messages\":[\"role\":\"...\", \"content\":\"...\"], \"temperature\": \"...\"}\n";
-  std::cout << "\nPress Ctrl+C to stop\n";
-
-  return server.listen("0.0.0.0", port);
+    return server.listen("0.0.0.0", port);
 }
 
 void HttpServer::stop()

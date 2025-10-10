@@ -97,11 +97,11 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
   if (uri.ends_with(".md") || uri.ends_with(".txt")) {
     return "text";
   }
-  size_t code_indicators = 0, total_lines = 0;
+  size_t codeIndicators = 0, totalLines = 0;
   std::stringstream ss(text);
   std::string line;
   while (std::getline(ss, line)) {
-    total_lines++;
+    totalLines++;
     if (
       line.find("class ") != std::string::npos ||
       line.find("struct ") != std::string::npos ||
@@ -117,10 +117,14 @@ std::string Chunker::detectContentType(const std::string &text, const std::strin
       line.find("endmacro ") != std::string::npos ||
       std::count(line.begin(), line.end(), '{') > 0 ||
       std::count(line.begin(), line.end(), ';') > 1) {
-      code_indicators++;
+      codeIndicators++;
     }
   }
-  return (code_indicators > total_lines * 0.3) ? "code" : "text";
+  auto metric = totalLines * 0.3;
+  if (totalLines < 3) {
+    metric = text.length() * 0.3 * 0.3;
+  }
+  return (metric < codeIndicators) ? "code" : "text";
 }
 
 std::vector<Chunk> Chunker::postProcessChunks(std::vector<Chunk> &chunks, const std::string &chunkType) const

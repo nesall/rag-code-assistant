@@ -20,42 +20,48 @@ public:
     std::vector<std::string> exclude; // for "directory"
     std::string url; // for "url"
     std::map<std::string, std::string> headers; // for "url"
-    std::size_t urlTimeoutMs; // for "url"
+    std::size_t urlTimeoutMs = 10000; // default 10s
   };
 
 public:
   Settings(const std::string &path = "settings.json");
-  std::string tokenizerConfigPath() const { return config_["tokenizer"]["config_path"]; }
-  
-  int chunkingMaxTokens() const { return config_["chunking"]["nof_max_nokens"]; }
-  int chunkingMinTokens() const { return config_["chunking"]["nof_min_tokens"]; }
-  float chunkingOverlap() const { return config_["chunking"]["overlap_percentage"]; }
-  bool chunkingSemantic() const { return config_["chunking"]["semantic"]; }
 
-  std::string embeddingApiUrl() const { return config_["embedding"]["api_url"]; }
-  std::string embeddingApiKey() const { return config_["embedding"]["api_key"]; }
-  std::string embeddingModel() const { return config_["embedding"]["model"]; }
-  size_t embeddingTimeoutMs() const { return config_["embedding"]["timeout_ms"]; }
-  size_t embeddingBatchSize() const { return config_["embedding"]["batch_size"]; }
-  size_t embeddingTopK() const { return config_["embedding"]["top_k"]; }
+  std::string tokenizerConfigPath() const {
+    return config_["tokenizer"].value("config_path", "tokenizer.json");
+  }
 
-  std::string generationApiUrl() const { return config_["generation"]["api_url"]; }
-  std::string generationApiKey() const { return config_["generation"]["api_key"]; }
-  std::string generationModel() const { return config_["generation"]["model"]; }
-  size_t generationTimeoutMs() const { return config_["generation"]["timeout_ms"]; }
-  size_t generationMaxContextTokens() const { return config_["generation"].value("max_context_tokens", size_t(20000)); }
+  int chunkingMaxTokens() const { return config_["chunking"].value("nof_max_tokens", 500); }
+  int chunkingMinTokens() const { return config_["chunking"].value("nof_min_tokens", 50); }
+  float chunkingOverlap() const { return config_["chunking"].value("overlap_percentage", 0.1f); }
+  bool chunkingSemantic() const { return config_["chunking"].value("semantic", false); }
 
-  std::string databaseSqlitePath() const { return config_["database"]["sqlite_path"]; }
-  std::string databaseIndexPath() const { return config_["database"]["index_path"]; }
-  size_t databaseVectorDim() const { return config_["database"]["vector_dim"]; }
-  size_t databaseMaxElements() const { return config_["database"]["max_elements"]; }
-  std::string databaseDistanceMetric() const { return config_["database"]["distance_metric"]; }
-  
-  size_t filesMaxFileSizeMb() const { return config_["files"]["max_file_size_mb"]; }
-  std::string filesEncoding() const { return config_["files"]["encoding"]; }
-  std::vector<std::string> filesGlobalExclusions() const { return config_["files"]["global_exclude"]; }
-  std::vector<std::string> filesDefaultExtensions() const { return config_["files"]["default_extensions"]; }
-  
+  std::string embeddingApiUrl() const { return config_["embedding"].value("api_url", ""); }
+  std::string embeddingApiKey() const { return config_["embedding"].value("api_key", ""); }
+  std::string embeddingModel() const { return config_["embedding"].value("model", "default-embedding"); }
+  size_t embeddingTimeoutMs() const { return config_["embedding"].value("timeout_ms", size_t(10'000)); }
+  size_t embeddingBatchSize() const { return config_["embedding"].value("batch_size", size_t(16)); }
+  size_t embeddingTopK() const { return config_["embedding"].value("top_k", size_t(5)); }
+
+  std::string generationApiUrl() const { return config_["generation"].value("api_url", ""); }
+  std::string generationApiKey() const { return config_["generation"].value("api_key", ""); }
+  std::string generationModel() const { return config_["generation"].value("model", "default-gen"); }
+  size_t generationTimeoutMs() const { return config_["generation"].value("timeout_ms", size_t(20'000)); }
+  size_t generationMaxFullSources() const { return config_["generation"].value("max_full_sources", size_t(2)); }
+  size_t generationMaxRelatedPerSource() const { return config_["generation"].value("max_related_per_source", size_t(3)); }
+  size_t generationMaxContextTokens() const { return config_["generation"].value("max_context_tokens", size_t(20'000)); }
+  size_t generationMaxChunks() const { return config_["generation"].value("max_chunks", size_t(5)); }
+
+  std::string databaseSqlitePath() const { return config_["database"].value("sqlite_path", "db.sqlite"); }
+  std::string databaseIndexPath() const { return config_["database"].value("index_path", "index"); }
+  size_t databaseVectorDim() const { return config_["database"].value("vector_dim", size_t(768)); }
+  size_t databaseMaxElements() const { return config_["database"].value("max_elements", size_t(100'000)); }
+  std::string databaseDistanceMetric() const { return config_["database"].value("distance_metric", "cosine"); }
+
+  size_t filesMaxFileSizeMb() const { return config_["files"].value("max_file_size_mb", size_t(10)); }
+  std::string filesEncoding() const { return config_["files"].value("encoding", "utf-8"); }
+  std::vector<std::string> filesGlobalExclusions() const { return config_["files"].value("global_exclude", std::vector<std::string>{}); }
+  std::vector<std::string> filesDefaultExtensions() const { return config_["files"].value("default_extensions", std::vector<std::string>{".txt", ".md"}); }
+
   std::vector<SourceItem> sources() const;
 
 private:
