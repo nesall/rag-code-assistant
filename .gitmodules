@@ -1,0 +1,3 @@
+[submodule "backend/embedder-cpp"]
+	path = backend/embedder-cpp
+	url = https://github.com/nesall/embedder_cpp.git
