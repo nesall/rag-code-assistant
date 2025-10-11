@@ -14,7 +14,7 @@
 
   let { loading = false, onSendMessage }: Props = $props();
 
-  let input = $state("What does the increment operator in C++ do?");
+  let input = $state("");
 
   let attachments: File[] = $state([]);
   let filenames: string[] = [];

@@ -4,7 +4,7 @@
   interface Props {
     name: string;
     checked: boolean;
-    loading: boolean;
+    loading?: boolean;
     id?: string;
     title?: string;
     onClose?: () => void;
@@ -42,7 +42,7 @@
   />
   <label
     for={`context-file-${id}`}
-    class="text-xs select-none pl-1 cursor-pointer"
+    class="text-xs select-none pl-1 cursor-pointer {!checked ? 'text-surface-500 italic' : ''}"
   >
     {name}
   </label>

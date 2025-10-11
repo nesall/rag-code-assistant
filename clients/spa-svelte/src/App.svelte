@@ -4,34 +4,18 @@
   import ChatPanel from "./lib/widgets/ChatPanel.svelte";
   import { Toaster } from "@skeletonlabs/skeleton-svelte";
   import { toaster } from "./lib/utils";
+  import Toolbar from "./lib/widgets/Toolbar.svelte";
+
+  let chatParams: ChatParametersType|undefined = $state();
 </script>
 
 <main
-  class="mx-auto flex w-full h-full flex-col items-center justify-center p-4 overflow-y-auto"
+  class="mx-auto flex flex-col space-y-2 items-center p-4 w-full h-full justify-center"
 >
-  <!-- <div>
-    <a href="https://vite.dev" target="_blank" rel="noreferrer">
-      <img src={viteLogo} class="logo" alt="Vite Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank" rel="noreferrer">
-      <img src={svelteLogo} class="logo svelte" alt="Svelte Logo" />
-    </a>
+  <Toolbar bind:chatParams />
+  <div class="flex-grow w-full overflow-y-auto">
+    <ChatPanel {chatParams} />
   </div>
-  <h1>Vite + Svelte</h1>
-
-  <div class="card">
-    <Counter />
-  </div>
-
-  <p>
-    Check out <a href="https://github.com/sveltejs/kit#readme" target="_blank" rel="noreferrer">SvelteKit</a>, the official Svelte app framework powered by Vite!
-  </p>
-
-  <p class="read-the-docs">
-    Click on the Vite and Svelte logos to learn more
-  </p> -->
-
-  <ChatPanel />
 </main>
 
 <Toaster {toaster} stateError="preset-tonal-error"></Toaster>

@@ -2,7 +2,7 @@
   import * as icons from "@lucide/svelte";
 
   interface Props {
-    loading: boolean;
+    loading?: boolean;
     // onChange: (files: File[]) => void;
     attachments: File[];
   }

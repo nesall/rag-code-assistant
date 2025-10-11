@@ -7,6 +7,11 @@
   import { renderMarkdown } from "../markdown";
   import { toaster } from "../utils";
 
+  interface Props {
+    chatParams?: ChatParametersType;
+  }
+  let { chatParams }: Props = $props();
+
   interface ChatMessage {
     role: "user" | "assistant" | "system";
     content: string;
@@ -215,13 +220,20 @@
         messages,
         attachments,
         sourceids,
+        chatParams,
       });
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ messages, attachments, sourceids }),
+        body: JSON.stringify({
+          messages,
+          attachments,
+          sourceids,
+          targetapi: chatParams?.targetApi,
+          temperature: chatParams?.temperature,
+        }),
       });
       if (!response.ok) {
         throw new Error("Failed to send message");
@@ -325,7 +337,7 @@
 <div
   class="md:p-4 max-w-[900px] w-full h-full p-4 md:p-8 flex flex-col space-y-8"
 >
-  <div class="flex flex-col space-y-6 mb-4 grow p-4 bg-surface-50-950">
+  <div class="flex flex-col space-y-6 mb-4 grow p-4">
     {#if messages.length === 0}
       <p class="text-center text-surface-500">
         No messages yet. Start the conversation!
@@ -423,7 +435,7 @@
   </div>
 
   <div
-    class="sticky bottom-0 flex items-end pb-0 pt-4 relative pb-8 bg-surface-50-950 gradient-to-t from-surface-50-950"
+    class="sticky bottom-0 flex items-end pb-0 pt-4 relative pb-8 gradient-to-t from-surface-50-950"
   >
     {#if showScrollBtn}
       <div class="absolute top-[-1.5rem] w-full flex" transition:fade>

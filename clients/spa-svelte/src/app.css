@@ -3,8 +3,15 @@
 @import '@skeletonlabs/skeleton';
 @import '@skeletonlabs/skeleton/optional/presets';
 @import '@skeletonlabs/skeleton/themes/cerberus';
+@import '@skeletonlabs/skeleton/themes/concord';
+@import '@skeletonlabs/skeleton/themes/hamlindigo';
+@import '@skeletonlabs/skeleton/themes/terminus';
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
+@source './lib/widgets';
+@source './lib';
+
+@custom-variant dark (&:where([data-mode=dark], [data-mode=dark] *));
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

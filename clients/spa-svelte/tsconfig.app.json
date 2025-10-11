@@ -25,6 +25,7 @@
     "src/**/*.ts",
     "src/**/*.js",
     "src/**/*.svelte",
-    "src/global.d.ts"
+    "src/global.d.ts",
+    "src/app.d.ts"
   ]
 }
