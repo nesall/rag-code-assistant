@@ -2,9 +2,9 @@
   import * as icons from "@lucide/svelte";
   import Checkbox from "./Checkbox.svelte";
   import { Modal } from "@skeletonlabs/skeleton-svelte";
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import { bytesToSize, hash } from "../utils";
-  import { fade, fly, slide } from "svelte/transition";
+  import { fade, fly } from "svelte/transition";
 
   interface Props {
     loading: boolean;
@@ -13,6 +13,7 @@
   let { loading = false, onChange }: Props = $props();
 
   let openState = $state(false);
+  let filterValue = $state("");
 
   interface Document {
     path: string;
@@ -23,6 +24,10 @@
     _checked: boolean;
   }
   let documents: Document[] = $state([]);
+
+  const filteredDocs = $derived(
+    documents.filter((d) => d.path.includes(filterValue)),
+  );
 
   onMount(() => {
     const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
@@ -127,21 +132,29 @@
         <div class="whitespace-wrap text-sm mb-4">
           Selected documents can be explicitly included in the context.
         </div>
+
+        <input
+          type="text"
+          class="input text-sm my-1"
+          placeholder="Type to filter"
+          bind:value={filterValue}
+        />
         <div
-          class="max-h-96 max-w-[80vw] overflow-auto scrollbar-hide text-sm
+          class="h-96 max-h-96 max-w-[80vw] overflow-auto scrollbar-hide text-sm
           p-4 border border-surface-200-800 rounded text-xs"
         >
-          {#each documents as doc, i (doc.path)}
+          {#each filteredDocs as doc, i (doc.path)}
             <div
               class="hover:bg-surface-200-800 odd:bg-surface-100-900 px-2
               flex items-center space-x-2 border-b border-surface-200-800
               {doc._visible ? 'font-bold' : ''}"
+              transition:fade
             >
               <input
                 type="checkbox"
                 class="checkbox w-4 h-4 p-0 m-0 accent-primary-500"
                 id={`document-checkbox-${i}`}
-                bind:checked={documents[i]._visible}
+                bind:checked={filteredDocs[i]._visible}
                 onchange={(e: Event) => {
                   doc._checked = (
                     (e as InputEvent).target as HTMLInputElement

@@ -48,7 +48,7 @@ const renderer: RendererObject = {
     return `
       <div class="relative my-4">
         <button
-          class="absolute top-2 right-2 bg-surface-200 hover:bg-surface-300 text-xs px-2 py-1 rounded shadow"
+          class="absolute top-2 right-2 bg-surface-200-800 hover:bg-surface-300-700 text-xs px-2 py-1 rounded shadow"
           onclick="navigator.clipboard.writeText(document.getElementById('${codeId}').innerText)">
           Copy
         </button>
