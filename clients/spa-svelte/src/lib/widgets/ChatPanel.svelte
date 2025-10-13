@@ -334,10 +334,8 @@
   }
 </script>
 
-<div
-  class="md:p-4 max-w-[900px] w-full h-full p-4 md:p-8 flex flex-col space-y-8"
->
-  <div class="flex flex-col space-y-6 mb-4 grow p-4">
+<div class="md:p-4 w-full h-full p-4 md:p-8 flex flex-col space-y-8">
+  <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if messages.length === 0}
       <p class="text-center text-surface-500">
         No messages yet. Start the conversation!
@@ -345,9 +343,9 @@
     {/if}
     {#each messages as msg, i}
       {#if msg.role === "user"}
-        <div class="flex flex-col items-end overflow-y-hidden box-border">
+        <div class="flex flex-col items-end overflow-y-hidden box-border message" data-role="user">
           <div
-            class="bg-primary-50-950 shadow2 rounded-xl whitespace-pre-wrap p-4 break-normal text-left"
+            class="bg-primary-50-950 shadow2 rounded-xl whitespace-pre-wrap p-4 break-normal text-left message-content"
             id="user-message-{i}"
           >
             {msg._userMessage || msg.content}
@@ -373,9 +371,9 @@
           </div>
         </div>
       {:else}
-        <div class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1">
+        <div class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message" data-role="assistant">
           <div
-            class="border2 border-surface-100-900 bg-surface-500/5 shadow2 rounded-xl whitespace-normal p-4 break-normal text-left"
+            class="border2 border-surface-100-900 bg-surface-500/5 shadow2 rounded-xl whitespace-normal p-4 break-normal text-left message-content"
           >
             {#if msg._html}
               {@html DOMPurify.sanitize(msg._html, {

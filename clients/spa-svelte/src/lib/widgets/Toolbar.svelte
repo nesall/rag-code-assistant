@@ -148,6 +148,7 @@
   }
 
   function onDownloadChat() {
+    console.log("onDownloadChat");
     const chat = document.getElementById("chat-messages");
     if (!chat) return;
     let text = "";
