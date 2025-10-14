@@ -13,4 +13,16 @@ export default defineConfig({
       }
     }
   },
+  base: './',
+  build: {
+    outDir: 'dist',
+    assetsInlineLimit: 100000000, // Inline everything
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true, // Single JS file
+        manualChunks: undefined,
+      }
+    }
+  },
 })

@@ -1,0 +1,64 @@
+cmake_minimum_required(VERSION 3.16)
+project(webview LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+include(FetchContent)
+FetchContent_Declare(
+    webview
+    GIT_REPOSITORY https://github.com/webview/webview
+    GIT_TAG 0.12.0
+)
+
+FetchContent_Declare(
+    httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG v0.23.1
+)
+
+FetchContent_Declare(
+  utils_log
+  GIT_REPOSITORY https://github.com/nesall/utils-log.git
+  GIT_TAG main
+)
+
+FetchContent_MakeAvailable(webview httplib utils_log)
+
+# logging
+add_library(utils_log INTERFACE)
+target_include_directories(utils_log INTERFACE ${utils_log_SOURCE_DIR})
+
+# Path to sibling spa-svelte project
+set(SPA_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../spa-svelte)
+set(SPA_DIST_DIR ${SPA_CLIENT_DIR}/dist)
+
+# Main executable
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log)
+
+# Platform-specific libraries
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} ole32)
+elseif(APPLE)
+    find_library(COCOA Cocoa)
+    find_library(WEBKIT WebKit)
+    target_link_libraries(${PROJECT_NAME} ${COCOA} ${WEBKIT})
+elseif(UNIX AND NOT APPLE)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WEBKIT2 REQUIRED webkit2gtk-4.0)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${WEBKIT2_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} ${WEBKIT2_LIBRARIES} pthread)
+endif()
+
+# Copy pre-built web assets if they exist
+if(EXISTS ${SPA_DIST_DIR})
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${SPA_DIST_DIR}
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/web_assets
+        COMMENT "Copying web assets to executable directory"
+    )
+else()
+    message(WARNING "Web assets not found at ${SPA_DIST_DIR} - build spa-svelte manually first")
+endif()
