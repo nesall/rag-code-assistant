@@ -71,3 +71,26 @@ export async function testConnection() {
   }
   return false;
 }
+
+export function isPtInRect(rc: DOMRect, x: number, y: number) {
+  return rc.x <= x && x < rc.x + rc.width && rc.y <= y && y < rc.y + rc.height;
+}
+
+
+export const initResizeObserver = (ref: HTMLElement, handler: any) => {
+  const resizeObserver = new ResizeObserver(entries => {
+    let sizes = [];
+    for (let entry of entries) {
+      let size;
+      if (entry.contentBoxSize) {
+        size = (Array.isArray(entry.contentBoxSize) ? entry.contentBoxSize[0] : entry.contentBoxSize).inlineSize;
+      } else {
+        size = entry.contentRect.width;
+      }
+      sizes.push(size);
+    }
+    handler(sizes);
+  });
+  resizeObserver.observe(ref);
+  return resizeObserver;
+};

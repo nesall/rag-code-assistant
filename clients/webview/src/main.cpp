@@ -178,7 +178,7 @@ int main() {
             req.body,
             contentType,
             [&sink](const char *data, size_t len) -> bool {
-              LOG_MSG << "Received chunk: " << len << " bytes";
+              //LOG_MSG << "Received chunk: " << len << " bytes";
               return sink.write(data, len);
             }
           );

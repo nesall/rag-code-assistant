@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as icons from "@lucide/svelte";
   import Checkbox from "./Checkbox.svelte";
-  import { Modal } from "@skeletonlabs/skeleton-svelte";
+  import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
   import { apiUrl, bytesToSize, clog, hash } from "../utils";
   import { fade, fly } from "svelte/transition";
@@ -112,80 +112,79 @@
   {/each}
 </div>
 
-<Modal
-  open={openState}
-  onOpenChange={(e) => (openState = e.open)}
-  triggerBase="btn preset-tonal"
-  contentBase="card bg-surface-100-900/70 p-4 space-y-4 shadow-xl max-w-screen-sm"
-  backdropClasses=""
->
-  <!-- {#snippet trigger()}Open Modal{/snippet} -->
-  {#snippet content()}
-    <header class="flex justify-between">
-      <div class="h6">Available Context Files</div>
-    </header>
-    <hr class="hr" />
-    <article>
-      {#if documents.length === 0}
-        <p>No context files available.</p>
-      {:else}
-        <div class="whitespace-wrap text-sm mb-4">
-          Selected documents can be explicitly included in the context.
-        </div>
+<Dialog open={openState} onOpenChange={(e) => (openState = e.open)}>
+  <Portal>
+    <Dialog.Positioner
+      class="fixed inset-0 z-50 flex justify-center items-center"
+    >
+      <Dialog.Content
+        class="card bg-surface-100-900 w-lg p-4 space-y-2 shadow-xl"
+      >
+        <Dialog.Title class="text-lg font-bold">
+          Available Context Files
+        </Dialog.Title>
+        <hr class="hr" />
+        <Dialog.Description>
+          {#if documents.length === 0}
+            <p>No context files available.</p>
+          {:else}
+            <div class="whitespace-wrap text-sm mb-4">
+              Selected documents can be explicitly included in the context.
+            </div>
 
-        <input
-          type="text"
-          class="input text-sm my-1"
-          placeholder="Type to filter"
-          bind:value={filterValue}
-        />
-        <div
-          class="h-96 max-h-96 max-w-[80vw] overflow-auto scrollbar-hide text-sm
-          p-4 border border-surface-200-800 rounded text-xs"
-        >
-          {#each filteredDocs as doc, i (doc.path)}
+            <input
+              type="text"
+              class="input text-sm my-1"
+              placeholder="Type to filter"
+              bind:value={filterValue}
+            />
             <div
-              class="hover:bg-surface-200-800 odd:bg-surface-100-900 px-2
+              class="h-96 max-h-96 overflow-auto scrollbar-hide text-sm
+                  p-4 border border-surface-200-800 rounded text-xs"
+            >
+              {#each filteredDocs as doc, i (doc.path)}
+                <div
+                  class="hover:bg-surface-200-800 odd:bg-surface-100-900 px-2
               flex items-center space-x-2 border-b border-surface-200-800
               {doc._visible ? 'font-bold' : ''}"
-              transition:fade
-            >
-              <input
-                type="checkbox"
-                class="checkbox w-4 h-4 p-0 m-0 accent-primary-500"
-                id={`document-checkbox-${i}`}
-                bind:checked={filteredDocs[i]._visible}
-                onchange={(e: Event) => {
-                  doc._checked = (
-                    (e as InputEvent).target as HTMLInputElement
-                  )?.checked;
-                }}
-                disabled={loading}
-              />
-              <label
-                class="p-2"
-                for={`document-checkbox-${i}`}
-                title={bytesToSize(doc.size) +
-                  ", Last modified " +
-                  new Date(doc.lastModified * 1000).toLocaleString()}
-              >
-                {doc.path}
-              </label>
+                  transition:fade
+                >
+                  <input
+                    type="checkbox"
+                    class="checkbox w-4 h-4 p-0 m-0 accent-primary-500"
+                    id={`document-checkbox-${i}`}
+                    bind:checked={filteredDocs[i]._visible}
+                    onchange={(e: Event) => {
+                      doc._checked = (
+                        (e as InputEvent).target as HTMLInputElement
+                      )?.checked;
+                    }}
+                    disabled={loading}
+                  />
+                  <label
+                    class="p-2"
+                    for={`document-checkbox-${i}`}
+                    title={bytesToSize(doc.size) +
+                      ", Last modified " +
+                      new Date(doc.lastModified * 1000).toLocaleString()}
+                  >
+                    {doc.path}
+                  </label>
+                </div>
+              {/each}
             </div>
-          {/each}
-        </div>
-      {/if}
-      <div class="my-4 flex justify-end space-x-2 text-sm">
-        <span>Selected documents:</span>
-        <span class="font-medium">
-          {documents.filter((d) => d._visible).length}/{documents.length}
-        </span>
-      </div>
-    </article>
-    <footer class="flex justify-end gap-4">
-      <button type="button" class="btn preset-filled" onclick={modalClose}>
-        Finish
-      </button>
-    </footer>
-  {/snippet}
-</Modal>
+          {/if}
+          <div class="my-4 flex justify-end space-x-2 text-sm">
+            <span>Selected documents:</span>
+            <span class="font-medium">
+              {documents.filter((d) => d._visible).length}/{documents.length}
+            </span>
+          </div>
+        </Dialog.Description>
+        <Dialog.CloseTrigger class="btn preset-filled w-full">
+          Finish
+        </Dialog.CloseTrigger>
+      </Dialog.Content>
+    </Dialog.Positioner>
+  </Portal>
+</Dialog>

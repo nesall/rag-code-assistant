@@ -1,8 +1,13 @@
 <script lang="ts">
   import * as icons from "@lucide/svelte";
-  import { Modal } from "@skeletonlabs/skeleton-svelte";
+  import {
+    Dialog,
+    Portal,
+    useListCollection,
+  } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
   import { apiUrl, clog, getLastLogs } from "../utils";
+  import Dropdown from "./Dropdown.svelte";
 
   interface Props {
     chatParams?: ChatParametersType;
@@ -22,23 +27,33 @@
     currentApi: string;
   }
 
-  let openState = $state(false);
+  let openState = $state(true);
   let apis: ModelItem[] = $state([]);
   let curTheme = $state("cerberus");
 
   let openLogsState = $state(false);
 
-  let themeOptions = [
-    "cerberus",
-    "concord",
-    "hamlindigo",
-    "terminus",
-    "mona",
-    "wintry",
-    "nosh",
-    "vox",
-    "rocket"
+  const themeOptions = [
+    { label: "Cerberus", value: "cerberus" },
+    { label: "Concord", value: "concord" },
+    { label: "Hamlindigo", value: "hamlindigo" },
+    { label: "Terminus", value: "terminus" },
+    { label: "Mona", value: "mona" },
+    { label: "Wintry", value: "wintry" },
+    { label: "Nosh", value: "nosh" },
+    { label: "Vox", value: "vox" },
+    { label: "Rocket", value: "rocket" },
   ];
+
+  const apiOptions = $derived(
+    apis.map((a) => ({ value: a.id, label: a.name, desc: a.model })),
+  );
+
+  const curApi = $derived(
+    -1 != apis.findIndex((a) => a.current)
+      ? apis[apis.findIndex((a) => a.current)].id
+      : "",
+  );
 
   onMount(() => {
     // clog("Toolbar mounted");
@@ -67,7 +82,10 @@
       });
     try {
       const savedTheme = localStorage.getItem("theme");
-      if (savedTheme && themeOptions.includes(savedTheme)) {
+      if (
+        savedTheme &&
+        -1 != themeOptions.findIndex((a) => a.value == savedTheme)
+      ) {
         document.documentElement.setAttribute("data-theme", savedTheme);
         curTheme = savedTheme;
       }
@@ -113,8 +131,7 @@
     openState = false;
   }
 
-  function onThemeChange(e: Event) {
-    const theme = (e.target as HTMLSelectElement).value;
+  function onThemeChange(i: number, theme: string) {
     document.documentElement.setAttribute("data-theme", theme);
     curTheme = theme;
     try {
@@ -124,9 +141,8 @@
     }
   }
 
-  function onModelChange(e: Event) {
+  function onModelChange(i: number, modelId: string) {
     try {
-      const modelId = (e.target as HTMLSelectElement).value;
       localStorage.setItem("api", modelId);
       apis = apis.map((api) => ({
         ...api,
@@ -254,115 +270,108 @@
   </div>
 </div>
 
-<Modal
-  open={openState}
-  onOpenChange={(e) => (openState = e.open)}
-  triggerBase="btn preset-tonal"
-  contentBase="card bg-surface-100-900/70 p-4 space-y-4 shadow-xl w-sm max-w-screen-sm"
-  backdropClasses=""
->
-  <!-- {#snippet trigger()}Open Modal{/snippet} -->
-  {#snippet content()}
-    <header class="flex justify-between">
-      <div class="h4">Settings</div>
-    </header>
-    <hr class="hr" />
-    <article class="flex flex-col space-y-4">
-      <div class="flex flex-col space-x-2 items-left w-full">
-        <span class="whitespace-nowrap">Theme:</span>
-        <select class="select w-full px-2 capitalize" onchange={onThemeChange}>
-          {#each themeOptions as theme}
-            <option
-              value={theme}
-              selected={theme == curTheme}
-              class="capitalize"
+<Dialog open={openState} onOpenChange={(e) => (openState = e.open)}>
+  <Portal>
+    <Dialog.Positioner
+      class="fixed inset-0 z-50 flex justify-center items-center"
+    >
+      <Dialog.Content
+        class="card bg-surface-100-900 w-md p-4 space-y-2 shadow-xl"
+      >
+        <Dialog.Title class="text-lg font-bold">Settings</Dialog.Title>
+        <hr class="hr" />
+        <Dialog.Description>
+          <div class="flex flex-col space-y-4">
+            <div class="flex flex-col space-x-2 items-left w-full">
+              <span class="whitespace-nowrap">Theme:</span>
+              <Dropdown
+                values={themeOptions}
+                value={curTheme}
+                onChange={onThemeChange}
+              />
+            </div>
+            <div
+              class="flex flex-col space-x-2 items-left w-full max-h-[10rem]"
             >
-              {theme}
-            </option>
-          {/each}
-        </select>
-      </div>
-      <div class="flex flex-col space-x-2 items-left w-full max-h-[10rem]">
-        {#if apis.length === 0}
-          <span class="italic text-surface-500">No models available</span>
-        {:else}
-          <span class="whitespace-nowrap">Model:</span>
-          <select class="select w-full px-2" onchange={onModelChange}>
-            {#each apis as api, i (api.id)}
-              <option value={api.id} selected={api.current}>
-                {api.name} - {api.model}
-              </option>
-            {/each}
-          </select>
-        {/if}
-      </div>
-      <div class="flex flex-col space-x-2 items-left w-full">
-        <div class="flex justify-between">
-          <span class="whitespace-nowrap">Temperature:</span>
-          <span class="whitespace-nowrap"
-            >({describeTemperature(
-              chatParams ? chatParams.temperature : 0.4,
-            )})</span
+              {#if apis.length === 0}
+                <span class="italic text-surface-500">No models available</span>
+              {:else}
+                <span class="whitespace-nowrap">Model:</span>
+                <Dropdown
+                  values={apiOptions}
+                  value={curApi}
+                  onChange={onModelChange}
+                />
+              {/if}
+            </div>
+            <div class="flex flex-col space-x-2 items-left w-full">
+              <div class="flex justify-between">
+                <span class="whitespace-nowrap">Temperature:</span>
+                <span class="whitespace-nowrap"
+                  >({describeTemperature(
+                    chatParams ? chatParams.temperature : 0.4,
+                  )})</span
+                >
+              </div>
+              <input
+                type="number"
+                min="0"
+                max="1.0"
+                step="0.1"
+                class="input w-full px-2"
+                value={chatParams?.temperature}
+                onchange={onTempChange}
+              />
+            </div>
+          </div>
+        </Dialog.Description>
+        <footer class="flex justify-end gap-4 pt-4">
+          <button
+            type="button"
+            class="mr-auto btn btn-sm hover:text-primary-500 flex-1 justify-start"
+            onclick={() => (openLogsState = true)}
           >
-        </div>
-        <input
-          type="number"
-          min="0"
-          max="1.0"
-          step="0.1"
-          class="input w-full px-2"
-          value={chatParams?.temperature}
-          onchange={onTempChange}
-        />
-      </div>
-    </article>
-    <footer class="flex justify-end gap-4">
-      <button
-        type="button"
-        class="mr-auto btn btn-sm hover:text-primary-500"
-        onclick={() => (openLogsState = true)}
-      >
-        Show logs...
-      </button>
-      <button type="button" class="btn preset-filled" onclick={modalClose}>
-        Finish
-      </button>
-    </footer>
-  {/snippet}
-</Modal>
+            Show logs...
+          </button>
+          <button
+            type="button"
+            class="btn preset-filled flex-1"
+            onclick={modalClose}
+          >
+            Finish
+          </button>
+        </footer>
+      </Dialog.Content>
+    </Dialog.Positioner>
+  </Portal>
+</Dialog>
 
-<Modal
-  open={openLogsState}
-  onOpenChange={(e) => (openLogsState = e.open)}
-  triggerBase="btn preset-tonal"
-  contentBase="card bg-surface-100-900 p-4 space-y-4 shadow-xl w-lg max-w-screen-md"
-  backdropClasses=""
->
-  {#snippet content()}
-    <header class="flex justify-between">
-      <div class="h4">Settings</div>
-    </header>
-    <hr class="hr" />
-    <article class="flex flex-col space-y-4">
-      <div
-        class="whitespace-pre-wrap font-mono text-xs max-h-[60vh] overflow-y-auto"
+<Dialog open={openLogsState} onOpenChange={(e) => (openLogsState = e.open)}>
+  <Portal>
+    <Dialog.Backdrop class="" />
+    <Dialog.Positioner
+      class="fixed inset-0 z-50 flex justify-center items-center"
+    >
+      <Dialog.Content
+        class="card bg-surface-100-900 w-xl p-4 space-y-2 shadow-xl"
       >
-        <pre id="log-output">
+        <Dialog.Title class="text-lg font-bold">Logs</Dialog.Title>
+        <hr class="hr" />
+        <Dialog.Description>
+          <div
+            class="whitespace-pre-wrap font-mono text-xs max-h-[60vh] overflow-y-auto"
+          >
+            <pre id="log-output">
           {#each getLastLogs() as log}<div
-              class="flex items-center space-x-1"><span>{log.date}</span><span
-                >&nbsp;</span
-              ><span>{log.data}</span></div>{/each}
+                  class="flex items-center space-x-1"><span>{log.date}</span
+                  ><span>&nbsp;</span><span>{log.data}</span></div>{/each}
         </pre>
-      </div>
-    </article>
-    <footer class="flex justify-end gap-4">
-      <button
-        type="button"
-        class="btn preset-filled"
-        onclick={() => (openLogsState = false)}
-      >
-        Close
-      </button>
-    </footer>
-  {/snippet}
-</Modal>
+          </div>
+        </Dialog.Description>
+        <Dialog.CloseTrigger class="btn preset-filled w-full">
+          Close
+        </Dialog.CloseTrigger>
+      </Dialog.Content>
+    </Dialog.Positioner>
+  </Portal>
+</Dialog>

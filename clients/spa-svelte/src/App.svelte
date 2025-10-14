@@ -2,7 +2,7 @@
   // import svelteLogo from "./assets/svelte.svg";
   // import viteLogo from "/vite.svg";
   import ChatPanel from "./lib/widgets/ChatPanel.svelte";
-  import { Toaster } from "@skeletonlabs/skeleton-svelte";
+  import { Toast } from "@skeletonlabs/skeleton-svelte";
   import { toaster } from "./lib/utils";
   import Toolbar from "./lib/widgets/Toolbar.svelte";
   import Statusbar from "./lib/widgets/Statusbar.svelte";
@@ -25,7 +25,17 @@
   </div>
 </main>
 
-<Toaster {toaster} stateError="preset-tonal-error"></Toaster>
+<Toast.Group {toaster}>
+  {#snippet children(toast)}
+    <Toast {toast}>
+      <Toast.Message>
+        <Toast.Title>{toast.title}</Toast.Title>
+        <Toast.Description>{toast.description}</Toast.Description>
+      </Toast.Message>
+      <Toast.CloseTrigger />
+    </Toast>
+  {/snippet}
+</Toast.Group>
 
 <style>
   /* .logo {
