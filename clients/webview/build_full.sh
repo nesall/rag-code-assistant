@@ -1,6 +1,12 @@
 #!/bin/bash
 echo "Building RAG Code Assistant WebView..."
 
+# Build the SPA client first
+echo "Building SPA client..."
+cd ../spa-svelte
+npm ci
+npm run build
+
 # Build the webview
 echo "Building webview..."
 cd ../webview

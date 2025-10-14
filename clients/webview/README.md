@@ -1,34 +1,19 @@
 Usage:
 
 
-
 ```bash
-
-\# From repository root
-
+# From repository root
 cd clients/webview
 
+# Build everything (SPA + webview)
+./build_full.sh
 
-
-\# Build everything (SPA + webview)
-
-./build.sh
-
-
-
-\# Or manually
-
+# Or manually
 mkdir build \&\& cd build
-
 cmake ..
-
 make
 
-
-
-\# Run
-
-./rag-code-assistant-webview
-
+# Run
+./rag_webview
 ```
 
