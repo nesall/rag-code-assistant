@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <fstream>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -47,6 +48,20 @@ namespace {
       }
     }
     return "";
+  }
+  
+  std::pair<int, int> readWindowSizePrefs() {
+    LOG_START;
+    std::pair<int, int> res = {700, 900};
+    std::string exeDir = getExecutableDir();
+    std::ifstream f(exeDir + "/window-size.txt");
+    if (f.is_open()) {
+      f >> res.first >> res.second;
+      LOG_MSG << "Window size from file, w" << res.first << ", h" << res.second;
+    }
+    res.first = (std::min)((std::max)(res.first, 200), 1400);
+    res.second = (std::min)((std::max)(res.second, 300), 1000);
+    return res;
   }
 
 } // anonymous namespace
@@ -92,9 +107,11 @@ int main() {
   }
 
   try {
+    const auto [width, height] = readWindowSizePrefs();
+    LOG_MSG << "Using window size, w" << width << ", h" << height;
     webview::webview w(true, nullptr);
     w.set_title("RAG Code Assistant");
-    w.set_size(700, 900, WEBVIEW_HINT_NONE);
+    w.set_size(width, height, WEBVIEW_HINT_NONE);
 
     // Bind C++ functions for JavaScript communication
     w.bind("sendToCpp", [](const std::string &msg) -> std::string {

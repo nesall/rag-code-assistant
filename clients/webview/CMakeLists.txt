@@ -35,6 +35,14 @@ set(SPA_DIST_DIR ${SPA_CLIENT_DIR}/dist)
 
 # Main executable
 add_executable(${PROJECT_NAME} src/main.cpp)
+
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
+	message(INFO " Win32 Release build")
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup"
+    )
+endif()
+
 target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log)
 
 # Platform-specific libraries
