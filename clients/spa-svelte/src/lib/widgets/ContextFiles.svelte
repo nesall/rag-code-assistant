@@ -3,7 +3,7 @@
   import Checkbox from "./Checkbox.svelte";
   import { Modal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { bytesToSize, hash } from "../utils";
+  import { apiUrl, bytesToSize, clog, hash } from "../utils";
   import { fade, fly } from "svelte/transition";
 
   interface Props {
@@ -31,7 +31,7 @@
 
   onMount(() => {
     const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
-    fetch("/api/documents")
+    fetch(apiUrl("/api/documents"))
       .then((response) => response.json())
       .then((data) => {
         documents = data.map((doc: any) => ({
@@ -45,7 +45,7 @@
         onChange(documents.filter((d) => d._checked).map((d) => d.path));
       })
       .catch((error) => {
-        console.error("Error fetching context files:", error);
+        clog("Error fetching context files:", error);
       });
   });
 

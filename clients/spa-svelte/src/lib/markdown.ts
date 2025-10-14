@@ -1,5 +1,5 @@
 import { marked, type Tokens, type RendererObject } from 'marked';
-import { escapeHtml } from './utils';
+import { apiUrl, escapeHtml } from './utils';
 
 let procUrl = (url: string) => { return url; }
 
@@ -31,7 +31,7 @@ const renderer: RendererObject = {
     const prefix = "/scratch/packages";
     if (href.startsWith(prefix) && prefix.length < href.length) {
       const file = encodeURIComponent(href.substring(prefix.length + 1));
-      href = procUrl(`/api/download?file=${file}`);
+      href = procUrl(apiUrl(`/api/download?file=${file}`));
     }
     return `<a href="${href}" title="${token.title || 'Click to download ' + token.text}" download="${token.text}" class="underline text-primary-500">${token.text}</a>`;
   },

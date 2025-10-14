@@ -2,6 +2,7 @@
   import * as icons from "@lucide/svelte";
   import { Modal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
+  import { apiUrl, clog, getLastLogs } from "../utils";
 
   interface Props {
     chatParams?: ChatParametersType;
@@ -25,29 +26,34 @@
   let apis: ModelItem[] = $state([]);
   let curTheme = $state("cerberus");
 
+  let openLogsState = $state(false);
+
   let themeOptions = ["cerberus", "concord", "hamlindigo", "terminus"];
 
   onMount(() => {
-    // console.log("Toolbar mounted");
+    // clog("Toolbar mounted");
     if (!chatParams) {
       chatParams = { temperature: 0.4, targetApi: "" };
     }
-    fetch("/api/settings")
-      .then((res) => res.json())
+    fetch(apiUrl("/api/settings"))
+      .then((res) => {
+         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        return res.json();
+      })
       .then((data) => {
         const settings = data as SettingsType;
         apis = settings.completionApis;
-        console.log("onMount /api/settings:", settings);
+        clog("onMount /api/settings:", settings);
         const savedApi = localStorage.getItem("api");
         apis = apis.map((api) => ({
           ...api,
           current: api.id === savedApi,
         }));
-        console.log("onMount apis", $state.snapshot(apis));
+        clog("onMount apis", $state.snapshot(apis));
         if (savedApi && chatParams) chatParams.targetApi = savedApi;
       })
       .catch((err) => {
-        console.error("error:", err);
+        clog("Error fetching /api/settings", err.message || err);
       });
     try {
       const savedTheme = localStorage.getItem("theme");
@@ -63,16 +69,16 @@
         chatParams.temperature = Number(savedTemp);
       }
     } catch (e) {
-      console.warn("Unable to access localStorage", e);
+      clog("Unable to access localStorage", e);
     }
   });
 
   $effect(() => {
-    if (chatParams) console.log("chatParams", $state.snapshot(chatParams));
+    if (chatParams) clog("chatParams", $state.snapshot(chatParams));
   });
 
   function setDarkOrLight(dl: string | null) {
-    console.log("setDarkOrLight", dl);
+    clog("setDarkOrLight", dl);
     const htmlEl = document.documentElement;
     if (dl === "dark") {
       htmlEl.setAttribute("data-mode", "dark");
@@ -89,7 +95,7 @@
     try {
       localStorage.setItem("darkOrLight", newDl);
     } catch (e) {
-      console.warn("Unable to access localStorage", e);
+      clog("Unable to access localStorage", e);
     }
   }
 
@@ -104,7 +110,7 @@
     try {
       localStorage.setItem("theme", theme);
     } catch (e) {
-      console.warn("Unable to access localStorage", e);
+      clog("Unable to access localStorage", e);
     }
   }
 
@@ -116,13 +122,13 @@
         ...api,
         current: api.id === modelId,
       }));
-      console.log("Selected model:", modelId);
+      clog("Selected model:", modelId);
       chatParams = {
         temperature: chatParams?.temperature || 0.5,
         targetApi: modelId,
       };
     } catch (e) {
-      console.warn("Unable to access localStorage", e);
+      clog("Unable to access localStorage", e);
     }
   }
 
@@ -135,12 +141,12 @@
       localStorage.setItem("temperature", t);
       chatParams.temperature = Number(t);
     } catch (e) {
-      console.warn("Unable to access localStorage", e);
+      clog("Unable to access localStorage", e);
     }
   }
 
   function describeTemperature(temp: number): string {
-    console.log("describeTemperature", temp);
+    clog("describeTemperature", temp);
     if (temp <= 0.2) return "Precise";
     if (temp <= 0.5) return "Balanced";
     if (temp <= 0.8) return "Creative";
@@ -148,7 +154,7 @@
   }
 
   function onDownloadChat() {
-    console.log("onDownloadChat");
+    clog("onDownloadChat");
     const chat = document.getElementById("chat-messages");
     if (!chat) return;
     let text = "";
@@ -168,7 +174,6 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
-
 </script>
 
 <div
@@ -302,8 +307,51 @@
       </div>
     </article>
     <footer class="flex justify-end gap-4">
+      <button
+        type="button"
+        class="mr-auto btn btn-sm hover:text-primary-500"
+        onclick={() => (openLogsState = true)}
+      >
+        Show logs...
+      </button>
       <button type="button" class="btn preset-filled" onclick={modalClose}>
         Finish
+      </button>
+    </footer>
+  {/snippet}
+</Modal>
+
+<Modal
+  open={openLogsState}
+  onOpenChange={(e) => (openLogsState = e.open)}
+  triggerBase="btn preset-tonal"
+  contentBase="card bg-surface-100-900 p-4 space-y-4 shadow-xl w-lg max-w-screen-md"
+  backdropClasses=""
+>
+  {#snippet content()}
+    <header class="flex justify-between">
+      <div class="h4">Settings</div>
+    </header>
+    <hr class="hr" />
+    <article class="flex flex-col space-y-4">
+      <div
+        class="whitespace-pre-wrap font-mono text-xs max-h-[60vh] overflow-y-auto"
+      >
+        <pre id="log-output">
+          {#each getLastLogs() as log}<div
+              class="flex items-center space-x-1"><span>{log.date}</span><span
+                >&nbsp;</span
+              ><span>{log.data}</span></div>{/each}
+        </pre>
+      </div>
+    </article>
+    <footer class="flex justify-end gap-4">
+      <button
+        type="button"
+        class="btn preset-filled"
+        onclick={() => (openLogsState = false)}
+      >
+        Close
       </button>
     </footer>
   {/snippet}

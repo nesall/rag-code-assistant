@@ -1,9 +1,11 @@
 #include <webview/webview.h>
 #include <httplib.h>
+#include <nlohmann/json.hpp>
 #include <ulogger.hpp>
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <sstream>
 #include <atomic>
 #include <fstream>
 
@@ -34,34 +36,75 @@ namespace {
   std::string findWebAssets() {
     LOG_START;
     std::string exeDir = getExecutableDir();
-    // Check multiple possible locations
     std::vector<std::string> paths = {
-        exeDir + "/web_assets",           // Development build
-        exeDir + "/../web_assets",        // Alternate location
-        "web_assets",                     // Current directory
-        "../web_assets",                  // Parent directory
-        "../../spa-svelte/dist"           // Direct from source (dev)
+        exeDir + "/web_assets",
+        exeDir + "/../web_assets",
+        "web_assets",
+        "../web_assets",
+        "../../spa-svelte/dist"
     };
     for (const auto &path : paths) {
-      if (fs::exists(path)) {
+      if (fs::exists(path) && fs::exists(fs::path(path) / "index.html")) {
         return path;
       }
     }
     return "";
   }
   
-  std::pair<int, int> readWindowSizePrefs() {
+  struct Prefs {
+    int width = 700;
+    int height = 900;
+    int port = 8081;
+    std::string host = "127.0.0.1";
+  };
+
+  Prefs readPrefsJson() {
     LOG_START;
-    std::pair<int, int> res = {700, 900};
-    std::string exeDir = getExecutableDir();
-    std::ifstream f(exeDir + "/window-size.txt");
-    if (f.is_open()) {
-      f >> res.first >> res.second;
-      LOG_MSG << "Window size from file, w" << res.first << ", h" << res.second;
+    Prefs prefs;
+    const std::string exeDir = getExecutableDir();
+    static std::vector<std::string> paths = {
+      exeDir + "/prefs.json",
+      exeDir + "/../prefs.json",
+      exeDir + "/../../prefs.json"
+    };
+    std::string prefsPath;
+    for (const auto &path : paths) {
+      if (fs::exists(path)) {
+        prefsPath = path;
+        break;
+      }
     }
-    res.first = (std::min)((std::max)(res.first, 200), 1400);
-    res.second = (std::min)((std::max)(res.second, 300), 1000);
-    return res;
+    std::ifstream f(prefsPath);
+    if (f.is_open()) {
+      std::stringstream ss;
+      ss << f.rdbuf();
+      try {
+        auto j = nlohmann::json::parse(ss.str());
+        if (j.contains("window") && j["window"].is_object()) {
+          const auto &w = j["window"];
+          if (w.contains("width") && w["width"].is_number_integer()) {
+            prefs.width = w["width"].get<int>();
+          }
+          if (w.contains("height") && w["height"].is_number_integer()) {
+            prefs.height = w["height"].get<int>();
+          }
+        } 
+        if (j.contains("api") && j["api"].is_object()) {
+          const auto &w = j["api"];
+          if (w.contains("host") && w["host"].is_string()) {
+            prefs.host = w["host"];
+          }
+          if (w.contains("port") && w["port"].is_number_integer()) {
+            prefs.port = w["port"].get<int>();
+          }
+        }
+      } catch (const std::exception &e) {
+        LOG_MSG << "Error parsing prefs.json: " << e.what();
+      }
+    }
+    prefs.width = (std::min)((std::max)(prefs.width, 200), 1400);
+    prefs.height = (std::min)((std::max)(prefs.height, 300), 1000);
+    return prefs;
   }
 
 } // anonymous namespace
@@ -69,90 +112,96 @@ namespace {
 int main() {
   LOG_START;
   const std::string assetsPath = findWebAssets();
+  const auto prefs = readPrefsJson();
 
-  if (!fs::exists(std::filesystem::path(assetsPath))) {
-    LOG_MSG << "Error: index.html not found in " << assetsPath;
+  // Check assets BEFORE starting server
+  if (assetsPath.empty()) {
+    LOG_MSG << "Error: Could not find web assets (index.html)";
+    LOG_MSG << "Please build the SPA client first:";
+    LOG_MSG << "  cd ../spa-svelte && npm run build";
     return 1;
   }
 
   LOG_MSG << "Loading Svelte app from: " << fs::absolute(assetsPath).string();
 
   httplib::Server svr;
-  svr.set_mount_point("/", assetsPath.c_str());
+  svr.set_mount_point("/", fs::absolute(assetsPath).string().c_str());
 
   svr.set_logger([](const auto &req, const auto &res) {
     LOG_MSG << req.method << " " << req.path << " -> " << res.status;
-    });
+  });
 
-  std::atomic<int> port{ 8709 };
-
-  std::thread serverThread([&svr, &port]() {
+  svr.Get("/api/.*", [prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
-    int p = port.load();
-    do {
-      port.store(p);
-      LOG_MSG << "Starting HTTP server on http://localhost:" << port.load();
-    } while (!svr.listen("127.0.0.1", p++));
-    LOG_MSG << "HTTP server listen returned";
+    LOG_MSG << "svr.Get " << req.method << " " << req.path;
+    httplib::Client cli(prefs.host, prefs.port);
+    cli.set_connection_timeout(0, 60 * 1000ull);
+    auto result = cli.Get(req.path.c_str());
+    if (result) {
+      res.status = result->status;
+      res.set_content(result->body, result->get_header_value("Content-Type"));
+    } else {
+      res.status = 503;
+      res.set_content("{\"error\": \"Backend unavailable\"}", "application/json");
+    }
     });
-  serverThread.detach();
 
-  if (assetsPath.empty()) {
-    LOG_MSG << "Error: Could not find web assets (index.html)";
-    LOG_MSG << "Please build the SPA client first:";
-    LOG_MSG << "  cd ../spa-svelte && npm run build";
-    svr.stop();
-    if (serverThread.joinable()) serverThread.join();
-    return 1;
+  std::atomic<bool> serverReady{false};
+  const int port = 8709;
+
+  std::thread serverThread([&svr, &serverReady, port]() {
+    LOG_START;
+    LOG_MSG << "Starting HTTP server on http://127.0.0.1:" << port;
+    serverReady = true;
+    svr.listen("127.0.0.1", port);
+    LOG_MSG << "HTTP server stopped";
+  });
+
+  // Wait for server to be ready
+  while (!serverReady.load()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   try {
-    const auto [width, height] = readWindowSizePrefs();
-    LOG_MSG << "Using window size, w" << width << ", h" << height;
+    LOG_MSG << "Using window size, w" << prefs.width << ", h" << prefs.height;
+    
     webview::webview w(true, nullptr);
     w.set_title("RAG Code Assistant");
-    w.set_size(width, height, WEBVIEW_HINT_NONE);
+    w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
-    // Bind C++ functions for JavaScript communication
     w.bind("sendToCpp", [](const std::string &msg) -> std::string {
       LOG_MSG << "Message from Svelte: " << msg;
       return "{\"status\": \"success\", \"message\": \"Received by C++\"}";
-      });
+    });
 
-    // Expose C++ API to JavaScript
     w.init(R"(
-            window.cppApi = {
-                sendMessage: function(msg) {
-                    return sendToCpp(msg);
-                }
-            };
-    
-            // Log errors to C++
-            window.addEventListener('error', function(e) {
-                console.error('JS Error:', e.message, e.filename, e.lineno);
-            });
-    
-            console.log('Webview initialized, location:', window.location.href);
-        )");
-
-    // Give server time to start
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      window.cppApi = {
+        sendMessage: function(msg) {
+          return sendToCpp(msg);
+        }
+      };
+      window.addEventListener('error', function(e) {
+        console.error('JS Error:', e.message, e.filename, e.lineno);
+      });
+      console.log('Webview initialized, location:', window.location.href);
+    )");
 
     const std::string url = "http://127.0.0.1:" + std::to_string(port);
-
+    LOG_MSG << "Navigating to: " << url;
+    
     w.navigate(url);
     w.run();
+    
     LOG_MSG << "Webview closed by user, stopping HTTP server...";
-    svr.stop();
-    if (serverThread.joinable()) {
-      serverThread.join();
-      LOG_MSG << "HTTP server thread joined cleanly";
-    }
   } catch (const std::exception &e) {
     LOG_MSG << "Webview error: " << e.what();
-    svr.stop();
-    if (serverThread.joinable()) serverThread.join();
-    return 1;
+  }
+
+  svr.stop();
+  if (serverThread.joinable()) {
+    serverThread.join();
+    LOG_MSG << "HTTP server thread joined cleanly";
   }
 
   return 0;

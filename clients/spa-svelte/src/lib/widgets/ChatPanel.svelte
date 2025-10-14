@@ -5,7 +5,7 @@
   import { onMount, tick } from "svelte";
   import DOMPurify from "dompurify";
   import { renderMarkdown } from "../markdown";
-  import { toaster } from "../utils";
+  import { apiUrl, clog, toaster } from "../utils";
 
   interface Props {
     chatParams?: ChatParametersType;
@@ -100,16 +100,16 @@
   let sourceidsLastUsed: string[] = [];
 
   function testServerConnection() {
-    fetch("/api/health")
+    fetch(apiUrl("/api/health"))
       .then((res) => {
         if (!res.ok) throw new Error("Server ping failed");
         return res.text();
       })
       .then((text) => {
-        console.log("Server response:", text);
+        clog("Server response:", text);
       })
       .catch((err) => {
-        console.error("Error connecting to server:", err);
+        clog("Error connecting to server:", err);
       });
   }
 
@@ -136,7 +136,7 @@
         };
         reader.onloadend = () => {
           if (attachments.indexOf(file) === attachments.length - 1) {
-            console.log("Final input with attachments ready!");
+            clog("Final input with attachments ready!");
             sendMessage(message, atts, sourceids, true);
           }
         };
@@ -216,13 +216,13 @@
     }
 
     try {
-      console.log("Sending message to server...", {
+      clog("Sending message to server...", {
         messages,
         attachments,
         sourceids,
         chatParams,
       });
-      const response = await fetch("/api/chat", {
+      const response = await fetch(apiUrl("/api/chat"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -269,7 +269,7 @@
       lm._html = normalizeHeaders(await renderMarkdown(lm.content));
       // sendFeedback(0, '', '', true);
     } catch (error) {
-      console.error("Error sending message:", error);
+      clog("Error sending message:", error);
       messages = [
         ...messages,
         {
@@ -285,18 +285,18 @@
   }
 
   function onCopyMsg(content: string) {
-    console.log("Copying message:", content);
+    clog("Copying message:", content);
     navigator.clipboard.writeText(content).then(
       () => {
         toaster.success({ title: "Message copied to clipboard" });
-        console.log("Text copied to clipboard");
+        clog("Text copied to clipboard");
       },
       (err) => {
         toaster.error({
           title: "Unable to copy message",
           description: err.message,
         });
-        console.error("Could not copy text: ", err);
+        clog("Could not copy text: ", err);
       },
     );
   }

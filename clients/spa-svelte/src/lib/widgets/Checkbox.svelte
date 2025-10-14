@@ -21,7 +21,7 @@
   }: Props = $props();
 
   $effect(() => {
-    // console.log("Checkbox:", { name, checked, loading });
+    // clog("Checkbox:", { name, checked, loading });
   });
 </script>
 

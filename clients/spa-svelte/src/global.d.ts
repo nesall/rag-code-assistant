@@ -1,3 +1,3 @@
-// declare interface Window {
-//   DOMPurify: any;
-// }
+declare interface Window {
+  apiServerUrl: string | undefined;
+}

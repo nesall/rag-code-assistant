@@ -23,7 +23,13 @@ FetchContent_Declare(
   GIT_TAG main
 )
 
-FetchContent_MakeAvailable(webview httplib utils_log)
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.2
+)
+
+FetchContent_MakeAvailable(webview httplib utils_log nlohmann_json)
 
 # logging
 add_library(utils_log INTERFACE)
@@ -43,7 +49,7 @@ if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
     )
 endif()
 
-target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log)
+target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log nlohmann_json::nlohmann_json)
 
 # Platform-specific libraries
 if(WIN32)
