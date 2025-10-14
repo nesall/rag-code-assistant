@@ -27,7 +27,7 @@
     currentApi: string;
   }
 
-  let openState = $state(true);
+  let openState = $state(false);
   let apis: ModelItem[] = $state([]);
   let curTheme = $state("cerberus");
 

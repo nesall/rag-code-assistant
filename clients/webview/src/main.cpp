@@ -16,6 +16,13 @@
 #include <unistd.h>
 #endif
 
+#if defined(__APPLE__)
+#import <Cocoa/Cocoa.h>
+#elif defined(__linux__)
+#include <gtk/gtk.h>
+#endif
+
+
 namespace fs = std::filesystem;
 
 namespace {
@@ -105,6 +112,35 @@ namespace {
     prefs.width = (std::min)((std::max)(prefs.width, 200), 1400);
     prefs.height = (std::min)((std::max)(prefs.height, 300), 1000);
     return prefs;
+  }
+
+
+  void setAppIcon(webview::webview &w, const std::string &iconBaseName) {
+    std::filesystem::path base = std::filesystem::current_path() / iconBaseName;
+#if defined(_WIN32)
+    std::wstring iconPath = (base.parent_path() / (base.stem().wstring() + L".ico")).wstring();
+    HICON hIcon = (HICON)LoadImageW(
+      nullptr, iconPath.c_str(), IMAGE_ICON, 32, 32, LR_LOADFROMFILE
+    );
+    if (hIcon) {
+      HWND hwnd = (HWND)w.window().value();
+      SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+      SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+    }
+#elif defined(__APPLE__)
+    std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
+    NSString *path = [NSString stringWithUTF8String : iconPath.c_str()];
+    NSImage *icon = [[NSImage alloc]initWithContentsOfFile:path];
+    if (icon)[NSApp setApplicationIconImage : icon];
+#elif defined(__linux__)
+    std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
+    GError *error = nullptr;
+    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file(iconPath.c_str(), &error);
+    if (pixbuf) {
+      gtk_window_set_icon(GTK_WINDOW(w.window()), pixbuf);
+      g_object_unref(pixbuf);
+    }
+#endif
   }
 
 } // anonymous namespace
@@ -240,6 +276,7 @@ int main() {
     LOG_MSG << "Using window size, w" << prefs.width << ", h" << prefs.height;
 
     webview::webview w(true, nullptr);
+    setAppIcon(w, "logo");
     w.set_title("RAG Code Assistant");
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
