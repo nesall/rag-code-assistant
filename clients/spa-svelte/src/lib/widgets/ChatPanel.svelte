@@ -59,6 +59,19 @@
           "Sure! Why don't scientists trust atoms? Because they make up everything!",
         ),
       },
+      {
+        role: "user",
+        content: "Can you tell me a joke?",
+        _html: "",
+      },
+      {
+        role: "assistant",
+        content:
+          "Sure! Why don't scientists trust atoms? Because they make up everything!",
+        _html: await renderMarkdown(
+          "Sure! Why don't scientists trust atoms? Because they make up everything!",
+        ),
+      },
     ];
   }
 
@@ -76,8 +89,6 @@
 
   onMount(() => {
     // insertTestMessages();
-
-    testServerConnection();
 
     const wrapper = document.querySelector("main") as
       | HTMLDivElement
@@ -98,20 +109,6 @@
   });
 
   let sourceidsLastUsed: string[] = [];
-
-  function testServerConnection() {
-    fetch(apiUrl("/api/health"))
-      .then((res) => {
-        if (!res.ok) throw new Error("Server ping failed");
-        return res.text();
-      })
-      .then((text) => {
-        clog("Server response:", text);
-      })
-      .catch((err) => {
-        clog("Error connecting to server:", err);
-      });
-  }
 
   function onSendMessage(
     message: string,
@@ -334,7 +331,7 @@
   }
 </script>
 
-<div class="md:p-4 w-full h-full p-4 md:p-8 flex flex-col space-y-8">
+<div class="chat-panel p-4 pb-0 w-full h-full flex flex-col space-y-8">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if messages.length === 0}
       <p class="text-center text-surface-500">
@@ -433,7 +430,7 @@
   </div>
 
   <div
-    class="sticky bottom-0 flex items-end pb-0 pt-4 relative pb-8 gradient-to-t from-surface-50-950"
+    class="sticky bottom-0 flex items-end pb-0 pt-4 relative gradient-to-t from-surface-50-950"
   >
     {#if showScrollBtn}
       <div class="absolute top-[-1.5rem] w-full flex" transition:fade>

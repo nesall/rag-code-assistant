@@ -59,3 +59,15 @@ export function apiUrl(path: string) {
   // clog('apiUrl ', base + path);
   return base + path;
 }
+
+export async function testConnection() {
+  try {
+    const res = await fetch(apiUrl("/api/health"));
+    if (res && res.ok) {
+      return true;
+    }
+  } catch (err: any) {
+    clog("Error testing server connection:", err);
+  }
+  return false;
+}

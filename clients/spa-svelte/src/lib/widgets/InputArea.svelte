@@ -49,7 +49,7 @@
 
 <form class="flex flex-col space-y-2 w-full" onsubmit={onSubmit}>
   <div
-    class="flex flex-col rounded-xl border-1 p-3 pb-3 w-full bg-surface-50-950 border-surface-200-800 relative"
+    class="flex flex-col rounded-xl border-1 p-3 w-full bg-surface-50-950 border-surface-200-800 relative"
     role="presentation"
     tabindex="-1"
   >
@@ -59,7 +59,7 @@
         placeholder="Type a message (Shift+Enter to add a new line)"
         id="msg-input"
         dir="auto"
-        rows="6"
+        rows="5"
         maxlength="4000"
         bind:value={input}
         disabled={loading}

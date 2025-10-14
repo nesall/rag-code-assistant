@@ -50,7 +50,7 @@ namespace {
     }
     return "";
   }
-  
+
   struct Prefs {
     int width = 700;
     int height = 900;
@@ -88,7 +88,7 @@ namespace {
           if (w.contains("height") && w["height"].is_number_integer()) {
             prefs.height = w["height"].get<int>();
           }
-        } 
+        }
         if (j.contains("api") && j["api"].is_object()) {
           const auto &w = j["api"];
           if (w.contains("host") && w["host"].is_string()) {
@@ -129,7 +129,7 @@ int main() {
 
   svr.set_logger([](const auto &req, const auto &res) {
     LOG_MSG << req.method << " " << req.path << " -> " << res.status;
-  });
+    });
 
   svr.Get("/api/.*", [prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
@@ -146,7 +146,80 @@ int main() {
     }
     });
 
-  std::atomic<bool> serverReady{false};
+  svr.Post("/api/.*", [prefs](const httplib::Request &req, httplib::Response &res) {
+    LOG_START;
+    LOG_MSG << "svr.Post " << req.method << " " << req.path;
+
+    std::string contentType = req.get_header_value("Content-Type");
+    if (contentType.empty()) {
+      contentType = "application/json";
+    }
+
+    // Special case for /api/chat - handle streaming
+    if (req.path.find("/api/chat") != std::string::npos) {
+
+      // Set up streaming response headers
+      res.set_header("Content-Type", "text/event-stream");
+      res.set_header("Cache-Control", "no-cache");
+      res.set_header("Connection", "keep-alive");
+
+      res.set_chunked_content_provider(
+        "text/event-stream",
+        [prefs, req, &res, contentType](size_t offset, httplib::DataSink &sink) {
+          LOG_MSG << "Starting chunked content provider, offset: " << offset;
+
+          httplib::Client cli(prefs.host, prefs.port);
+          cli.set_connection_timeout(0, 60 * 1000ull);
+
+          httplib::Headers headers = { {"Accept", "text/event-stream"} };
+          auto postRes = cli.Post(
+            req.path.c_str(),
+            headers,
+            req.body,
+            contentType,
+            [&sink](const char *data, size_t len) -> bool {
+              LOG_MSG << "Received chunk: " << len << " bytes";
+              return sink.write(data, len);
+            }
+          );
+
+          sink.done();
+          
+          if (!postRes) {
+            LOG_MSG << "Error: Backend streaming unavailable";
+            res.status = 503;
+            res.set_content("{\"error\": \"Backend streaming unavailable\"}", "application/json");
+          }
+          if (postRes->status != 200) {
+            LOG_MSG << "Error: Backend streaming returned status " << postRes->status;
+            res.status = postRes->status;
+          }
+          
+          LOG_MSG << "Streaming completed successfully";
+
+          return true;
+        });
+
+    } else {
+
+      // Regular POST handling for non-streaming endpoints
+
+      httplib::Client cli(prefs.host, prefs.port);
+      cli.set_connection_timeout(0, 60 * 1000ull);
+
+      auto result = cli.Post(req.path.c_str(), req.body, contentType);
+
+      if (result) {
+        res.status = result->status;
+        res.set_content(result->body, result->get_header_value("Content-Type"));
+      } else {
+        res.status = 503;
+        res.set_content("{\"error\": \"Backend unavailable\"}", "application/json");
+      }
+    }
+    });
+
+  std::atomic<bool> serverReady{ false };
   const int port = 8709;
 
   std::thread serverThread([&svr, &serverReady, port]() {
@@ -155,7 +228,7 @@ int main() {
     serverReady = true;
     svr.listen("127.0.0.1", port);
     LOG_MSG << "HTTP server stopped";
-  });
+    });
 
   // Wait for server to be ready
   while (!serverReady.load()) {
@@ -165,7 +238,7 @@ int main() {
 
   try {
     LOG_MSG << "Using window size, w" << prefs.width << ", h" << prefs.height;
-    
+
     webview::webview w(true, nullptr);
     w.set_title("RAG Code Assistant");
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
@@ -173,7 +246,7 @@ int main() {
     w.bind("sendToCpp", [](const std::string &msg) -> std::string {
       LOG_MSG << "Message from Svelte: " << msg;
       return "{\"status\": \"success\", \"message\": \"Received by C++\"}";
-    });
+      });
 
     w.init(R"(
       window.cppApi = {
@@ -189,10 +262,10 @@ int main() {
 
     const std::string url = "http://127.0.0.1:" + std::to_string(port);
     LOG_MSG << "Navigating to: " << url;
-    
+
     w.navigate(url);
     w.run();
-    
+
     LOG_MSG << "Webview closed by user, stopping HTTP server...";
   } catch (const std::exception &e) {
     LOG_MSG << "Webview error: " << e.what();

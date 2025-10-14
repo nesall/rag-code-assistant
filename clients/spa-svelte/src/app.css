@@ -6,6 +6,11 @@
 @import '@skeletonlabs/skeleton/themes/concord';
 @import '@skeletonlabs/skeleton/themes/hamlindigo';
 @import '@skeletonlabs/skeleton/themes/terminus';
+@import '@skeletonlabs/skeleton/themes/mona';
+@import '@skeletonlabs/skeleton/themes/wintry';
+@import '@skeletonlabs/skeleton/themes/nosh';
+@import '@skeletonlabs/skeleton/themes/vox';
+@import '@skeletonlabs/skeleton/themes/rocket';
 
 @source '../node_modules/@skeletonlabs/skeleton-svelte/dist';
 @source './lib/widgets';
@@ -38,7 +43,7 @@ a:hover {
   color: #535bf2;
 } */
 
-body {
+/* body {
   margin: 0;
   display: flex;
   place-items: center;
@@ -46,7 +51,7 @@ body {
   height: 100vh;
   min-width: 320px;
   min-height: 100vh;
-}
+} */
 
 h1 {
   font-size: 3.2em;

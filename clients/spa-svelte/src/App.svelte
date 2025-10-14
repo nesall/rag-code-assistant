@@ -5,16 +5,23 @@
   import { Toaster } from "@skeletonlabs/skeleton-svelte";
   import { toaster } from "./lib/utils";
   import Toolbar from "./lib/widgets/Toolbar.svelte";
+  import Statusbar from "./lib/widgets/Statusbar.svelte";
 
-  let chatParams: ChatParametersType|undefined = $state();
+  let chatParams: ChatParametersType | undefined = $state();
 </script>
 
 <main
-  class="mx-auto max-w-[900px] flex flex-col space-y-2 items-center p-4 w-full h-full justify-center"
+  class="mx-auto flex flex-col space-y-2 items-center justify-center
+    w-[100vw] h-[100vh] min-w-sx max-w-[900px] min-h-sx max-h-[100vh]"
 >
-  <Toolbar bind:chatParams />
-  <div class="flex-grow w-full overflow-y-auto">
-    <ChatPanel {chatParams} />
+  <div class="p-4 m-0 flex flex-col w-full h-full">
+    <Toolbar bind:chatParams />
+    <div class="flex-grow w-full h-0 overflow-y-auto">
+      <ChatPanel {chatParams} />
+    </div>
+  </div>
+  <div class="w-full">
+    <Statusbar />
   </div>
 </main>
 

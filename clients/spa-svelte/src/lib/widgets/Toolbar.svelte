@@ -28,7 +28,17 @@
 
   let openLogsState = $state(false);
 
-  let themeOptions = ["cerberus", "concord", "hamlindigo", "terminus"];
+  let themeOptions = [
+    "cerberus",
+    "concord",
+    "hamlindigo",
+    "terminus",
+    "mona",
+    "wintry",
+    "nosh",
+    "vox",
+    "rocket"
+  ];
 
   onMount(() => {
     // clog("Toolbar mounted");
@@ -37,7 +47,7 @@
     }
     fetch(apiUrl("/api/settings"))
       .then((res) => {
-         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return res.json();
       })
       .then((data) => {
@@ -177,7 +187,7 @@
 </script>
 
 <div
-  class="flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded"
+  class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded"
 >
   <span class="font-semibold text-sm text-surface-700-900">
     RAG Code Assistant
