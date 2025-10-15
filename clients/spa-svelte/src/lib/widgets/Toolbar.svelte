@@ -1,34 +1,22 @@
 <script lang="ts">
   import * as icons from "@lucide/svelte";
-  import {
-    Dialog,
-    Portal,
-    useListCollection,
-  } from "@skeletonlabs/skeleton-svelte";
+  import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
   import { apiUrl, clog, getLastLogs } from "../utils";
   import Dropdown from "./Dropdown.svelte";
 
   interface Props {
-    chatParams?: ChatParametersType;
+    params: ChatParametersType;
   }
-  let { chatParams = $bindable() }: Props = $props();
-
-  interface ModelItem {
-    id: string;
-    name: string;
-    url: string;
-    model: string;
-    current: boolean;
-  }
-
-  interface SettingsType {
-    completionApis: ModelItem[];
-    currentApi: string;
-  }
+  let {
+    params = $bindable({
+      temperature: 0.1,
+      settings: { completionApis: [], currentApi: "" },
+    }),
+  }: Props = $props();
 
   let openState = $state(false);
-  let apis: ModelItem[] = $state([]);
+  // let apis: ModelItem[] = $state([]);
   let curTheme = $state("cerberus");
 
   let openLogsState = $state(false);
@@ -46,20 +34,23 @@
   ];
 
   const apiOptions = $derived(
-    apis.map((a) => ({ value: a.id, label: a.name, desc: a.model })),
+    params.settings.completionApis.map((a) => ({
+      value: a.id,
+      label: a.name,
+      desc: `${a.model} (cost: ${Number(a.combinedPrice).toFixed(2)})`,
+    })),
   );
 
   const curApi = $derived(
-    -1 != apis.findIndex((a) => a.current)
-      ? apis[apis.findIndex((a) => a.current)].id
+    -1 != params.settings.completionApis.findIndex((a) => a.current)
+      ? params.settings.completionApis[
+          params.settings.completionApis.findIndex((a) => a.current)
+        ].id
       : "",
   );
 
   onMount(() => {
-    // clog("Toolbar mounted");
-    if (!chatParams) {
-      chatParams = { temperature: 0.4, targetApi: "" };
-    }
+    console.log("Toolbar onMount");
     fetch(apiUrl("/api/settings"))
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -67,7 +58,7 @@
       })
       .then((data) => {
         const settings = data as SettingsType;
-        apis = settings.completionApis;
+        let apis = settings.completionApis;
         clog("onMount /api/settings:", settings);
         const savedApi = localStorage.getItem("api");
         apis = apis.map((api) => ({
@@ -75,7 +66,10 @@
           current: api.id === savedApi,
         }));
         clog("onMount apis", $state.snapshot(apis));
-        if (savedApi && chatParams) chatParams.targetApi = savedApi;
+        settings.completionApis = apis;
+        settings.currentApi = savedApi || settings.currentApi;
+        if (savedApi && params) params.settings = settings;
+        params = params;
       })
       .catch((err) => {
         clog("Error fetching /api/settings", err.message || err);
@@ -94,15 +88,17 @@
 
       const savedTemp = localStorage.getItem("temperature");
       if (savedTemp) {
-        chatParams.temperature = Number(savedTemp);
+        params.temperature = Number(savedTemp);
       }
+      params = params;
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
   });
 
   $effect(() => {
-    if (chatParams) clog("chatParams", $state.snapshot(chatParams));
+    if (params) clog("Toolbar params changed:", $state.snapshot(params));
+    if (curApi) clog("Toolbar curApi changed:", $state.snapshot(curApi));
   });
 
   function setDarkOrLight(dl: string | null) {
@@ -144,28 +140,29 @@
   function onModelChange(i: number, modelId: string) {
     try {
       localStorage.setItem("api", modelId);
-      apis = apis.map((api) => ({
-        ...api,
-        current: api.id === modelId,
-      }));
-      clog("Selected model:", modelId);
-      chatParams = {
-        temperature: chatParams?.temperature || 0.5,
-        targetApi: modelId,
-      };
+      params.settings.completionApis = params.settings.completionApis.map(
+        (api) => ({
+          ...api,
+          current: api.id === modelId,
+        }),
+      );
+      clog("Toolbar.onModelChange", modelId);
+      params.settings.currentApi = modelId;
+      params = params;
+      // params = {
+      //   temperature: params?.temperature || 0.4,
+      //   settings: { completionApis: params.settings.completionApis, currentApi: modelId },
+      // };
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
   }
 
   function onTempChange(e: Event) {
-    if (!chatParams) {
-      chatParams = { temperature: 0.5, targetApi: "" };
-    }
     try {
       const t = (e.target as HTMLSelectElement).value;
       localStorage.setItem("temperature", t);
-      chatParams.temperature = Number(t);
+      params.temperature = Number(t);
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -205,6 +202,7 @@
 <div
   class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded"
 >
+  <img src="/logo.png" alt="Logo" class="h-6 w-6" />
   <span class="font-semibold text-sm text-surface-700-900">
     RAG Code Assistant
   </span>
@@ -293,10 +291,10 @@
             <div
               class="flex flex-col space-x-2 items-left w-full max-h-[10rem]"
             >
-              {#if apis.length === 0}
+              {#if params.settings.completionApis.length === 0}
                 <span class="italic text-surface-500">No models available</span>
               {:else}
-                <span class="whitespace-nowrap">Model:</span>
+                <span class="whitespace-nowrap">Default model:</span>
                 <Dropdown
                   values={apiOptions}
                   value={curApi}
@@ -308,9 +306,7 @@
               <div class="flex justify-between">
                 <span class="whitespace-nowrap">Temperature:</span>
                 <span class="whitespace-nowrap"
-                  >({describeTemperature(
-                    chatParams ? chatParams.temperature : 0.4,
-                  )})</span
+                  >({describeTemperature(params.temperature)})</span
                 >
               </div>
               <input
@@ -319,7 +315,7 @@
                 max="1.0"
                 step="0.1"
                 class="input w-full px-2"
-                value={chatParams?.temperature}
+                value={params.temperature}
                 onchange={onTempChange}
               />
             </div>

@@ -6,8 +6,14 @@
   import { toaster } from "./lib/utils";
   import Toolbar from "./lib/widgets/Toolbar.svelte";
   import Statusbar from "./lib/widgets/Statusbar.svelte";
+  import { onMount, setContext } from "svelte";
 
-  let chatParams: ChatParametersType | undefined = $state();
+  let params: ChatParametersType = $state({
+    temperature: 0.1,
+    settings: { completionApis: [], currentApi: "" },
+  });
+
+  onMount(() => {});
 </script>
 
 <main
@@ -15,13 +21,13 @@
     w-[100vw] h-[100vh] min-w-sx max-w-[900px] min-h-sx max-h-[100vh]"
 >
   <div class="p-4 m-0 flex flex-col w-full h-full">
-    <Toolbar bind:chatParams />
+    <Toolbar bind:params />
     <div class="chatpanel-wrapper flex-grow w-full h-0 overflow-y-auto">
-      <ChatPanel {chatParams} />
+      <ChatPanel chatParams={params} />
     </div>
   </div>
   <div class="w-full">
-    <Statusbar />
+    <Statusbar bind:params />
   </div>
 </main>
 

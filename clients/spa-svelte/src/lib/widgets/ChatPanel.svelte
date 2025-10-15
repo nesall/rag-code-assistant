@@ -21,6 +21,10 @@
     // _improvedText?: string;
   }
 
+  $effect(() => {
+    clog("ChatPanel chatParams changed:", $state.snapshot(chatParams));
+  });
+
   async function insertTestMessages() {
     messages = [
       {
@@ -83,7 +87,7 @@
 
   function checkMessagesEndVisibility() {
     if (!messagesEndDiv) return;
-    console.log("checkMessagesEndVisibility");
+    // console.log("checkMessagesEndVisibility");
     const rect = messagesEndDiv.getBoundingClientRect();
     showScrollBtn = window.innerHeight < rect.bottom;
   }
@@ -164,27 +168,29 @@
     if (len === 0) return "";
     let fullResponse: string = "";
     let buffer: string = ""; // holds leftover partial data
-
     // SSE format: "data: <payload>\n\n"
     buffer += chunk.substring(0, len);
     let pos: number;
-
     while ((pos = buffer.indexOf("\n\n")) !== -1) {
       const event = buffer.substring(0, pos); // one SSE event
       buffer = buffer.substring(pos + 2);
-
       if (event.startsWith("data: ")) {
         const jsonStr = event.substring(6);
         if (jsonStr === "[DONE]") {
           break;
         }
-
         const chunkJson = JSON.parse(jsonStr); // validate JSON
-        const content = chunkJson.content || "";
-        fullResponse += content;
+        if (chunkJson.sources && chunkJson.type == "context_sources") {
+          fullResponse += `\n\nSources:  \n`;
+          for (const a of chunkJson.sources as string[]) {
+            fullResponse += `*${a}*  \n`;
+          }
+        } else {
+          const content = chunkJson.content || "";
+          fullResponse += content;
+        }
       }
     }
-
     return fullResponse;
   }
 
@@ -212,7 +218,7 @@
       input = "";
       tick().then(() => messagesEndDiv?.scrollIntoView({ behavior: "smooth" }));
     }
-
+    console.log("ChatPanel.sendMessage");
     try {
       const messagesToSend = messages.map((m) => ({
         role: m.role,
@@ -233,7 +239,7 @@
           messages: messagesToSend,
           attachments,
           sourceids,
-          targetapi: chatParams?.targetApi,
+          targetapi: chatParams?.settings.currentApi,
           temperature: chatParams?.temperature,
         }),
       });

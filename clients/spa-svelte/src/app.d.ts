@@ -1,4 +1,19 @@
+interface SettingsType {
+  completionApis: ModelItem[];
+  currentApi: string;
+}
+
 interface ChatParametersType {
   temperature: number;
-  targetApi: string;
+  settings: SettingsType;
 }
+
+interface ModelItem {
+  id: string;
+  name: string;
+  url: string;
+  model: string;
+  current: boolean;
+  combinedPrice: number;
+}
+

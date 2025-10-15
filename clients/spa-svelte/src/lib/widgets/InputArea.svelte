@@ -19,6 +19,8 @@
   let attachments: File[] = $state([]);
   let filenames: string[] = [];
 
+  let apis: ModelItem[] = $state([]);
+
   function onSubmit(e: Event) {
     e.preventDefault();
     if (
