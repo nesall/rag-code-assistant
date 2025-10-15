@@ -4,11 +4,7 @@
   import ContextFiles from "./ContextFiles.svelte";
 
   interface Props {
-    onSendMessage: (
-      message: string,
-      attachments: File[],
-      filenames: string[],
-    ) => void;
+    onSendMessage: (message: string, attachments: File[], filenames: string[]) => void;
     loading: boolean;
   }
 
@@ -19,14 +15,9 @@
   let attachments: File[] = $state([]);
   let filenames: string[] = [];
 
-  let apis: ModelItem[] = $state([]);
-
   function onSubmit(e: Event) {
     e.preventDefault();
-    if (
-      onSendMessage &&
-      (input.trim() || 0 < attachments.length || 0 < filenames.length)
-    ) {
+    if (onSendMessage && (input.trim() || 0 < attachments.length || 0 < filenames.length)) {
       onSendMessage(input.trim(), attachments, filenames);
       input = "";
       attachments = [];
@@ -79,8 +70,8 @@
       </div>
     </div>
     <div class="absolute2 left2-1 bottom2-1 flex flex-col space-y-2">
-      <FileAttachments {loading} bind:attachments />
-      <ContextFiles {loading} onChange={onContextFiles} />
+      <FileAttachments loading={loading} bind:attachments={attachments} />
+      <ContextFiles loading={loading} onChange={onContextFiles} />
     </div>
   </div>
 </form>

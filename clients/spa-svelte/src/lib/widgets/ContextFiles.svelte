@@ -25,9 +25,7 @@
   }
   let documents: Document[] = $state([]);
 
-  const filteredDocs = $derived(
-    documents.filter((d) => d.path.includes(filterValue)),
-  );
+  const filteredDocs = $derived(documents.filter((d) => d.path.includes(filterValue)));
 
   onMount(() => {
     const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
@@ -37,10 +35,8 @@
         documents = data.map((doc: any) => ({
           ...doc,
           _name: doc.path.split("/").pop() || doc.path,
-          _visible:
-            saved.find((d: any) => d.path === doc.path)?._visible || false,
-          _checked:
-            saved.find((d: any) => d.path === doc.path)?._checked || false,
+          _visible: saved.find((d: any) => d.path === doc.path)?._visible || false,
+          _checked: saved.find((d: any) => d.path === doc.path)?._checked || false,
         }));
         onChange(documents.filter((d) => d._checked).map((d) => d.path));
       })
@@ -114,15 +110,9 @@
 
 <Dialog open={openState} onOpenChange={(e) => (openState = e.open)}>
   <Portal>
-    <Dialog.Positioner
-      class="fixed inset-0 z-50 flex justify-center items-center"
-    >
-      <Dialog.Content
-        class="card bg-surface-100-900 w-lg p-4 space-y-2 shadow-xl"
-      >
-        <Dialog.Title class="text-lg font-bold">
-          Available Context Files
-        </Dialog.Title>
+    <Dialog.Positioner class="fixed inset-0 z-50 flex justify-center items-center">
+      <Dialog.Content class="card bg-surface-100-900 w-lg p-4 space-y-2 shadow-xl">
+        <Dialog.Title class="text-lg font-bold">Available Context Files</Dialog.Title>
         <hr class="hr" />
         <Dialog.Description>
           {#if documents.length === 0}
@@ -132,12 +122,7 @@
               Selected documents can be explicitly included in the context.
             </div>
 
-            <input
-              type="text"
-              class="input text-sm my-1"
-              placeholder="Type to filter"
-              bind:value={filterValue}
-            />
+            <input type="text" class="input text-sm my-1" placeholder="Type to filter" bind:value={filterValue} />
             <div
               class="h-96 max-h-96 overflow-auto scrollbar-hide text-sm
                   p-4 border border-surface-200-800 rounded text-xs"
@@ -155,9 +140,7 @@
                     id={`document-checkbox-${i}`}
                     bind:checked={filteredDocs[i]._visible}
                     onchange={(e: Event) => {
-                      doc._checked = (
-                        (e as InputEvent).target as HTMLInputElement
-                      )?.checked;
+                      doc._checked = ((e as InputEvent).target as HTMLInputElement)?.checked;
                     }}
                     disabled={loading}
                   />
@@ -181,9 +164,7 @@
             </span>
           </div>
         </Dialog.Description>
-        <Dialog.CloseTrigger class="btn preset-filled w-full">
-          Finish
-        </Dialog.CloseTrigger>
+        <Dialog.CloseTrigger class="btn preset-filled w-full">Finish</Dialog.CloseTrigger>
       </Dialog.Content>
     </Dialog.Positioner>
   </Portal>

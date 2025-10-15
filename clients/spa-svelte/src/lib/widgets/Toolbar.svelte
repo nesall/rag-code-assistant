@@ -43,9 +43,7 @@
 
   const curApi = $derived(
     -1 != params.settings.completionApis.findIndex((a) => a.current)
-      ? params.settings.completionApis[
-          params.settings.completionApis.findIndex((a) => a.current)
-        ].id
+      ? params.settings.completionApis[params.settings.completionApis.findIndex((a) => a.current)].id
       : "",
   );
 
@@ -76,10 +74,7 @@
       });
     try {
       const savedTheme = localStorage.getItem("theme");
-      if (
-        savedTheme &&
-        -1 != themeOptions.findIndex((a) => a.value == savedTheme)
-      ) {
+      if (savedTheme && -1 != themeOptions.findIndex((a) => a.value == savedTheme)) {
         document.documentElement.setAttribute("data-theme", savedTheme);
         curTheme = savedTheme;
       }
@@ -113,8 +108,7 @@
 
   function onToggleDarkMode() {
     const htmlEl = document.documentElement;
-    const newDl =
-      htmlEl.getAttribute("data-mode") === "dark" ? "light" : "dark";
+    const newDl = htmlEl.getAttribute("data-mode") === "dark" ? "light" : "dark";
     setDarkOrLight(newDl);
     try {
       localStorage.setItem("darkOrLight", newDl);
@@ -140,12 +134,10 @@
   function onModelChange(i: number, modelId: string) {
     try {
       localStorage.setItem("api", modelId);
-      params.settings.completionApis = params.settings.completionApis.map(
-        (api) => ({
-          ...api,
-          current: api.id === modelId,
-        }),
-      );
+      params.settings.completionApis = params.settings.completionApis.map((api) => ({
+        ...api,
+        current: api.id === modelId,
+      }));
       clog("Toolbar.onModelChange", modelId);
       params.settings.currentApi = modelId;
       params = params;
@@ -199,13 +191,9 @@
   }
 </script>
 
-<div
-  class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded"
->
+<div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
   <img src="/logo.png" alt="Logo" class="h-6 w-6" />
-  <span class="font-semibold text-sm text-surface-700-900">
-    RAG Code Assistant
-  </span>
+  <span class="font-semibold text-sm text-surface-700-900"> RAG Code Assistant </span>
   <!-- <button
     type="button"
     class="btn btn-sm h-8 px-0 rounded-full flex items-center"
@@ -258,8 +246,7 @@
       class="btn btn-sm btn-icon px-1 hover:preset-tonal"
       aria-label="Settings"
       onclick={() => {
-        curTheme =
-          document.documentElement.getAttribute("data-theme") || "cerberus";
+        curTheme = document.documentElement.getAttribute("data-theme") || "cerberus";
         openState = true;
       }}
     >
@@ -270,44 +257,28 @@
 
 <Dialog open={openState} onOpenChange={(e) => (openState = e.open)}>
   <Portal>
-    <Dialog.Positioner
-      class="fixed inset-0 z-50 flex justify-center items-center"
-    >
-      <Dialog.Content
-        class="card bg-surface-100-900 w-md p-4 space-y-2 shadow-xl"
-      >
+    <Dialog.Positioner class="fixed inset-0 z-50 flex justify-center items-center">
+      <Dialog.Content class="card bg-surface-100-900 w-md p-4 space-y-2 shadow-xl">
         <Dialog.Title class="text-lg font-bold">Settings</Dialog.Title>
         <hr class="hr" />
         <Dialog.Description>
           <div class="flex flex-col space-y-4">
             <div class="flex flex-col space-x-2 items-left w-full">
               <span class="whitespace-nowrap">Theme:</span>
-              <Dropdown
-                values={themeOptions}
-                value={curTheme}
-                onChange={onThemeChange}
-              />
+              <Dropdown values={themeOptions} value={curTheme} onChange={onThemeChange} />
             </div>
-            <div
-              class="flex flex-col space-x-2 items-left w-full max-h-[10rem]"
-            >
+            <div class="flex flex-col space-x-2 items-left w-full max-h-[10rem]">
               {#if params.settings.completionApis.length === 0}
                 <span class="italic text-surface-500">No models available</span>
               {:else}
                 <span class="whitespace-nowrap">Default model:</span>
-                <Dropdown
-                  values={apiOptions}
-                  value={curApi}
-                  onChange={onModelChange}
-                />
+                <Dropdown values={apiOptions} value={curApi} onChange={onModelChange} />
               {/if}
             </div>
             <div class="flex flex-col space-x-2 items-left w-full">
               <div class="flex justify-between">
                 <span class="whitespace-nowrap">Temperature:</span>
-                <span class="whitespace-nowrap"
-                  >({describeTemperature(params.temperature)})</span
-                >
+                <span class="whitespace-nowrap">({describeTemperature(params.temperature)})</span>
               </div>
               <input
                 type="number"
@@ -329,13 +300,7 @@
           >
             Show logs...
           </button>
-          <button
-            type="button"
-            class="btn preset-filled flex-1"
-            onclick={modalClose}
-          >
-            Finish
-          </button>
+          <button type="button" class="btn preset-filled flex-1" onclick={modalClose}> Finish </button>
         </footer>
       </Dialog.Content>
     </Dialog.Positioner>
@@ -345,28 +310,19 @@
 <Dialog open={openLogsState} onOpenChange={(e) => (openLogsState = e.open)}>
   <Portal>
     <Dialog.Backdrop class="" />
-    <Dialog.Positioner
-      class="fixed inset-0 z-50 flex justify-center items-center"
-    >
-      <Dialog.Content
-        class="card bg-surface-100-900 w-xl p-4 space-y-2 shadow-xl"
-      >
+    <Dialog.Positioner class="fixed inset-0 z-50 flex justify-center items-center">
+      <Dialog.Content class="card bg-surface-100-900 w-xl p-4 space-y-2 shadow-xl">
         <Dialog.Title class="text-lg font-bold">Logs</Dialog.Title>
         <hr class="hr" />
         <Dialog.Description>
-          <div
-            class="whitespace-pre-wrap font-mono text-xs max-h-[60vh] overflow-y-auto"
-          >
+          <div class="whitespace-pre-wrap font-mono text-xs max-h-[60vh] overflow-y-auto">
             <pre id="log-output">
-          {#each getLastLogs() as log}<div
-                  class="flex items-center space-x-1"><span>{log.date}</span
-                  ><span>&nbsp;</span><span>{log.data}</span></div>{/each}
+          {#each getLastLogs() as log}<div class="flex items-center space-x-1"><span>{log.date}</span><span>&nbsp;</span
+                  ><span>{log.data}</span></div>{/each}
         </pre>
           </div>
         </Dialog.Description>
-        <Dialog.CloseTrigger class="btn preset-filled w-full">
-          Close
-        </Dialog.CloseTrigger>
+        <Dialog.CloseTrigger class="btn preset-filled w-full">Close</Dialog.CloseTrigger>
       </Dialog.Content>
     </Dialog.Positioner>
   </Portal>

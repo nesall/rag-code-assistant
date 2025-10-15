@@ -44,11 +44,8 @@
       },
       {
         role: "assistant",
-        content:
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        _html: await renderMarkdown(
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        ),
+        content: "Sure! Why don't scientists trust atoms? Because they make up everything!",
+        _html: await renderMarkdown("Sure! Why don't scientists trust atoms? Because they make up everything!"),
       },
       {
         role: "user",
@@ -57,11 +54,8 @@
       },
       {
         role: "assistant",
-        content:
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        _html: await renderMarkdown(
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        ),
+        content: "Sure! Why don't scientists trust atoms? Because they make up everything!",
+        _html: await renderMarkdown("Sure! Why don't scientists trust atoms? Because they make up everything!"),
       },
       {
         role: "user",
@@ -70,11 +64,8 @@
       },
       {
         role: "assistant",
-        content:
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        _html: await renderMarkdown(
-          "Sure! Why don't scientists trust atoms? Because they make up everything!",
-        ),
+        content: "Sure! Why don't scientists trust atoms? Because they make up everything!",
+        _html: await renderMarkdown("Sure! Why don't scientists trust atoms? Because they make up everything!"),
       },
     ];
   }
@@ -95,16 +86,12 @@
   onMount(() => {
     // insertTestMessages();
 
-    const wrapper = document.querySelector(".chatpanel-wrapper") as
-      | HTMLDivElement
-      | null
-      | undefined;
+    const wrapper = document.querySelector(".chatpanel-wrapper") as HTMLDivElement | null | undefined;
     if (wrapper) wrapper.addEventListener("scroll", checkMessagesEndVisibility);
     window.addEventListener("resize", checkMessagesEndVisibility);
     tick().then(checkMessagesEndVisibility);
     return () => {
-      if (wrapper)
-        wrapper.removeEventListener("scroll", checkMessagesEndVisibility);
+      if (wrapper) wrapper.removeEventListener("scroll", checkMessagesEndVisibility);
       window.removeEventListener("resize", checkMessagesEndVisibility);
     };
   });
@@ -115,11 +102,7 @@
 
   let sourceidsLastUsed: string[] = [];
 
-  function onSendMessage(
-    message: string,
-    attachments: File[],
-    sourceids: string[],
-  ) {
+  function onSendMessage(message: string, attachments: File[], sourceids: string[]) {
     if (!message.trim() && attachments.length === 0) return;
     sourceidsLastUsed = [...sourceids];
     message = message.trim();
@@ -345,16 +328,11 @@
 <div class="chat-panel p-4 pb-0 w-full h-full flex flex-col space-y-8">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if messages.length === 0}
-      <p class="text-center text-surface-500">
-        No messages yet. Start the conversation!
-      </p>
+      <p class="text-center text-surface-500">No messages yet. Start the conversation!</p>
     {/if}
     {#each messages as msg, i}
       {#if msg.role === "user"}
-        <div
-          class="flex flex-col items-end overflow-y-hidden box-border message"
-          data-role="user"
-        >
+        <div class="flex flex-col items-end overflow-y-hidden box-border message" data-role="user">
           <div
             class="bg-primary-50-950 shadow2 rounded-xl whitespace-pre-wrap p-4 break-normal text-left message-content"
             id="user-message-{i}"
@@ -382,10 +360,7 @@
           </div>
         </div>
       {:else}
-        <div
-          class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message"
-          data-role="assistant"
-        >
+        <div class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message" data-role="assistant">
           <div
             class="border2 border-surface-100-900 bg-surface-500/5 shadow2 rounded-xl whitespace-normal p-4 break-normal text-left message-content"
           >
@@ -446,9 +421,7 @@
     <div bind:this={messagesEndDiv}></div>
   </div>
 
-  <div
-    class="sticky bottom-0 flex items-end pb-0 pt-4 relative gradient-to-t from-surface-50-950"
-  >
+  <div class="sticky bottom-0 flex items-end pb-0 pt-4 relative gradient-to-t from-surface-50-950">
     {#if showScrollBtn}
       <div class="absolute top-[-1.5rem] w-full flex" transition:fade>
         <button
@@ -462,6 +435,6 @@
         </button>
       </div>
     {/if}
-    <InputArea {onSendMessage} {loading} />
+    <InputArea onSendMessage={onSendMessage} loading={loading} />
   </div>
 </div>
