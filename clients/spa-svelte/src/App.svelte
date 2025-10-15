@@ -16,7 +16,7 @@
 >
   <div class="p-4 m-0 flex flex-col w-full h-full">
     <Toolbar bind:chatParams />
-    <div class="flex-grow w-full h-0 overflow-y-auto">
+    <div class="chatpanel-wrapper flex-grow w-full h-0 overflow-y-auto">
       <ChatPanel {chatParams} />
     </div>
   </div>

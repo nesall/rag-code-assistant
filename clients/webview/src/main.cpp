@@ -116,7 +116,9 @@ namespace {
 
 
   void setAppIcon(webview::webview &w, const std::string &iconBaseName) {
-    std::filesystem::path base = std::filesystem::current_path() / iconBaseName;
+    auto assets = findWebAssets();
+    if (assets.empty()) return;
+    std::filesystem::path base = std::filesystem::path(assets) / iconBaseName;
 #if defined(_WIN32)
     std::wstring iconPath = (base.parent_path() / (base.stem().wstring() + L".ico")).wstring();
     HICON hIcon = (HICON)LoadImageW(

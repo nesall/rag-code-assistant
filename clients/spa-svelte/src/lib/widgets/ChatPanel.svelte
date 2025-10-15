@@ -83,6 +83,7 @@
 
   function checkMessagesEndVisibility() {
     if (!messagesEndDiv) return;
+    console.log("checkMessagesEndVisibility");
     const rect = messagesEndDiv.getBoundingClientRect();
     showScrollBtn = window.innerHeight < rect.bottom;
   }
@@ -90,7 +91,7 @@
   onMount(() => {
     // insertTestMessages();
 
-    const wrapper = document.querySelector("main") as
+    const wrapper = document.querySelector(".chatpanel-wrapper") as
       | HTMLDivElement
       | null
       | undefined;
@@ -213,8 +214,12 @@
     }
 
     try {
+      const messagesToSend = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
       clog("Sending message to server...", {
-        messages,
+        messagesToSend,
         attachments,
         sourceids,
         chatParams,
@@ -225,7 +230,7 @@
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages,
+          messages: messagesToSend,
           attachments,
           sourceids,
           targetapi: chatParams?.targetApi,
@@ -340,7 +345,10 @@
     {/if}
     {#each messages as msg, i}
       {#if msg.role === "user"}
-        <div class="flex flex-col items-end overflow-y-hidden box-border message" data-role="user">
+        <div
+          class="flex flex-col items-end overflow-y-hidden box-border message"
+          data-role="user"
+        >
           <div
             class="bg-primary-50-950 shadow2 rounded-xl whitespace-pre-wrap p-4 break-normal text-left message-content"
             id="user-message-{i}"
@@ -368,7 +376,10 @@
           </div>
         </div>
       {:else}
-        <div class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message" data-role="assistant">
+        <div
+          class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message"
+          data-role="assistant"
+        >
           <div
             class="border2 border-surface-100-900 bg-surface-500/5 shadow2 rounded-xl whitespace-normal p-4 break-normal text-left message-content"
           >
