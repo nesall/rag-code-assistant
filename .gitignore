@@ -48,6 +48,7 @@ pids
 x64/
 Debug/
 Release/
+dist/
 build/
 build_rel/
 cmake/

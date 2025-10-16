@@ -167,7 +167,7 @@
       const res = await fetch(url, {
         method: "GET",
       });
-
+      console.log(res);
       if (res.ok) {
         alert("Connection successful!");
       } else {

@@ -77,7 +77,7 @@ else()
     message(WARNING "Web assets not found at ${SPA_DIST_DIR} - build spa-svelte manually first")
 endif()
 
-if(WIN32)
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
   set(OPENSSL_BIN_DIR "$ENV{OPENSSL_PATH}/bin")
   add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenSSL DLLs..."
