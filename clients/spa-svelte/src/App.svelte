@@ -3,17 +3,38 @@
   // import viteLogo from "/vite.svg";
   import ChatPanel from "./lib/widgets/ChatPanel.svelte";
   import { Toast } from "@skeletonlabs/skeleton-svelte";
-  import { toaster } from "./lib/utils";
+  import { apiUrl, clog, toaster } from "./lib/utils";
   import Toolbar from "./lib/widgets/Toolbar.svelte";
   import Statusbar from "./lib/widgets/Statusbar.svelte";
-  import { onMount, setContext } from "svelte";
+  import { onMount } from "svelte";
+  import { settings, temperature } from "./lib/store";
 
-  let params: ChatParametersType = $state({
-    temperature: 0.1,
-    settings: { completionApis: [], currentApi: "" },
+  onMount(() => {
+    fetch(apiUrl("/api/settings"))
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        return res.json();
+      })
+      .then((data) => {
+        $settings = data as SettingsType;
+        let apis = $settings.completionApis;
+        console.log("onMount /api/settings:", settings);
+        const savedApi = localStorage.getItem("api");
+        apis = apis.map((api) => ({
+          ...api,
+          current: api.id === savedApi,
+        }));
+        console.log("Toolbar.onMount apis", $state.snapshot(apis));
+        $settings.completionApis = apis;
+        $settings.currentApi = savedApi || $settings.currentApi;
+
+        const savedTemp = localStorage.getItem("temperature");
+        $temperature = Number(savedTemp) || $temperature;
+      })
+      .catch((err) => {
+        clog("Error fetching /api/settings", err.message || err);
+      });
   });
-
-  onMount(() => {});
 </script>
 
 <main
@@ -21,13 +42,13 @@
     w-[100vw] h-[100vh] min-w-sx max-w-[900px] min-h-sx max-h-[100vh]"
 >
   <div class="p-4 m-0 flex flex-col w-full h-full">
-    <Toolbar bind:params />
+    <Toolbar />
     <div class="chatpanel-wrapper flex-grow w-full h-0 overflow-y-auto">
-      <ChatPanel chatParams={params} />
+      <ChatPanel />
     </div>
   </div>
   <div class="w-full">
-    <Statusbar bind:params />
+    <Statusbar />
   </div>
 </main>
 

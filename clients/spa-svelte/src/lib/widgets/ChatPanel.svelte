@@ -6,11 +6,7 @@
   import DOMPurify from "dompurify";
   import { renderMarkdown } from "../markdown";
   import { apiUrl, clog, toaster } from "../utils";
-
-  interface Props {
-    chatParams?: ChatParametersType;
-  }
-  let { chatParams }: Props = $props();
+  import { settings, temperature } from "../store";
 
   interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -22,7 +18,8 @@
   }
 
   $effect(() => {
-    clog("ChatPanel chatParams changed:", $state.snapshot(chatParams));
+    clog("ChatPanel $settings changed:", $state.snapshot($settings));
+    clog("ChatPanel $temperature changed:", $state.snapshot($temperature));
   });
 
   async function insertTestMessages() {
@@ -211,7 +208,8 @@
         messagesToSend,
         attachments,
         sourceids,
-        chatParams,
+        temperature: $state.snapshot($temperature),
+        settings: $state.snapshot($settings),
       });
       const response = await fetch(apiUrl("/api/chat"), {
         method: "POST",
@@ -222,8 +220,8 @@
           messages: messagesToSend,
           attachments,
           sourceids,
-          targetapi: chatParams?.settings.currentApi,
-          temperature: chatParams?.temperature,
+          targetapi: $settings.currentApi,
+          temperature: $temperature,
         }),
       });
       if (!response.ok) {
@@ -435,6 +433,6 @@
         </button>
       </div>
     {/if}
-    <InputArea onSendMessage={onSendMessage} loading={loading} />
+    <InputArea {onSendMessage} {loading} />
   </div>
 </div>
