@@ -76,3 +76,15 @@ if(EXISTS ${SPA_DIST_DIR})
 else()
     message(WARNING "Web assets not found at ${SPA_DIST_DIR} - build spa-svelte manually first")
 endif()
+
+if(WIN32)
+  set(OPENSSL_BIN_DIR "$ENV{OPENSSL_PATH}/bin")
+  add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E echo "Copying OpenSSL DLLs..."
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${OPENSSL_BIN_DIR}/libcrypto-3-x64.dll"
+          "${OPENSSL_BIN_DIR}/libssl-3-x64.dll"
+          $<$<CONFIG:Release>:$<TARGET_FILE_DIR:${PROJECT_NAME}>>
+  )
+endif()
+

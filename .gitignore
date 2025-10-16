@@ -49,6 +49,7 @@ x64/
 Debug/
 Release/
 build/
+build_rel/
 cmake/
 cmake-build/
 DS_Store

@@ -6,19 +6,9 @@
   import Dropdown from "./Dropdown.svelte";
   import { settings, temperature } from "../store";
 
-  // interface Props {
-  //   params: ChatParametersType;
-  // }
-  // let {
-  //   params = $bindable({
-  //     temperature: 0.1,
-  //     settings: { completionApis: [], currentApi: "" },
-  //   }),
-  // }: Props = $props();
-
   let openState = $state(false);
-  // let apis: ModelItem[] = $state([]);
   let curTheme = $state("cerberus");
+  let serverUrl = $state("localhost:8081");
 
   let openLogsState = $state(false);
 
@@ -50,29 +40,6 @@
 
   onMount(() => {
     console.log("Toolbar onMount");
-    // fetch(apiUrl("/api/settings"))
-    //   .then((res) => {
-    //     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    //     return res.json();
-    //   })
-    //   .then((data) => {
-    //     const settings = data as SettingsType;
-    //     let apis = settings.completionApis;
-    //     clog("onMount /api/settings:", settings);
-    //     const savedApi = localStorage.getItem("api");
-    //     apis = apis.map((api) => ({
-    //       ...api,
-    //       current: api.id === savedApi,
-    //     }));
-    //     clog("Toolbar.onMount apis", $state.snapshot(apis));
-    //     settings.completionApis = apis;
-    //     settings.currentApi = savedApi || settings.currentApi;
-    //     if (savedApi && params) params.settings = settings;
-    //     params = params;
-    //   })
-    //   .catch((err) => {
-    //     clog("Error fetching /api/settings", err.message || err);
-    //   });
     try {
       const savedTheme = localStorage.getItem("theme");
       if (savedTheme && -1 != themeOptions.findIndex((a) => a.value == savedTheme)) {
@@ -82,11 +49,7 @@
       const savedDarkLight = localStorage.getItem("darkOrLight");
       setDarkOrLight(savedDarkLight);
 
-      // const savedTemp = localStorage.getItem("temperature");
-      // if (savedTemp) {
-      //   params.temperature = Number(savedTemp);
-      // }
-      // params = params;
+      serverUrl = localStorage.getItem("serverUrl") || serverUrl;
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -141,11 +104,6 @@
       }));
       clog("Toolbar.onModelChange", modelId);
       $settings.currentApi = modelId;
-      // params = params;
-      // params = {
-      //   temperature: params?.temperature || 0.4,
-      //   settings: { completionApis: params.settings.completionApis, currentApi: modelId },
-      // };
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -153,7 +111,7 @@
 
   function onTempChange(e: Event) {
     try {
-      const t = (e.target as HTMLSelectElement).value;
+      const t = (e.target as HTMLInputElement).value;
       localStorage.setItem("temperature", t);
       $temperature = Number(t);
     } catch (e) {
@@ -189,6 +147,36 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function onServerUrlChange(e: Event) {
+    try {
+      serverUrl = (e.target as HTMLInputElement).value;
+      localStorage.setItem("serverUrl", serverUrl);
+    } catch (e) {
+      clog("Unable to access localStorage", e);
+    }
+  }
+
+  async function onTestConnection() {
+    try {
+      let url = `${serverUrl}/api/health`;
+      if (!url.startsWith("http")) {
+        url = "http://" + url;
+      }
+      const res = await fetch(url, {
+        method: "GET",
+      });
+
+      if (res.ok) {
+        alert("Connection successful!");
+      } else {
+        alert(`Connection failed: ${res.statusText}`);
+      }
+    } catch (error) {
+      clog("Connection test failed:", error);
+      alert(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   }
 </script>
 
@@ -290,6 +278,13 @@
                 value={$temperature}
                 onchange={onTempChange}
               />
+            </div>
+            <div class="flex flex-col space-x-2 items-left w-full">
+              <span class="whitespace-nowrap">Server:</span>
+              <div class="flex items-center space-x-2">
+                <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
+                <button type="button" class="btn preset-tonal" onclick={onTestConnection}> Test connection </button>
+              </div>
             </div>
           </div>
         </Dialog.Description>
