@@ -43,7 +43,8 @@
 
 <main
   class="mx-auto flex flex-col space-y-2 items-center justify-center
-    w-[100vw] h-[100vh] min-w-sx max-w-[900px] min-h-sx max-h-[100vh]"
+    w-[100vw] h-[100vh] min-w-sx min-h-sx max-h-[100vh]"
+    style="max-width: 60rem"
 >
   <div class="p-4 m-0 flex flex-col w-full h-full">
     <Toolbar />
