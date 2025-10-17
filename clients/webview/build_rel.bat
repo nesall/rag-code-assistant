@@ -9,8 +9,8 @@ call npm run build
 
 echo Building webview...
 cd ..\webview
-mkdir build
-cd build
+mkdir build_rel
+cd build_rel
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 cd ..
@@ -18,7 +18,7 @@ cd ..
 echo Copying release artifacts to dist folder...
 rm dist -rf
 mkdir dist
-xcopy build\Release\* dist\ /E /Y
+xcopy build_rel\Release\* dist\ /E /Y
 rm dist\output.log -f
 rm dist\diagnostics.log -f
 xcopy prefs.json dist\

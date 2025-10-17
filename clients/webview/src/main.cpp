@@ -63,9 +63,10 @@ namespace {
     int height = 900;
     int port = 8081;
     std::string host = "127.0.0.1";
+    mutable std::mutex mutex_;
   };
 
-  Prefs readPrefsJson() {
+  void fetchOrCreatePrefsJson(Prefs &prefs) {
     LOG_START;
     Prefs prefs;
     const std::string exeDir = getExecutableDir();
@@ -108,10 +109,33 @@ namespace {
       } catch (const std::exception &e) {
         LOG_MSG << "Error parsing prefs.json: " << e.what();
       }
+    } else {
+      // Create prefs.json at paths[0]
+      prefsPath = paths[0];
+      nlohmann::json j;
+      j["window"] = {
+        {"width", prefs.width},
+        {"height", prefs.height}
+      };
+      j["api"] = {
+        {"host", prefs.host},
+        {"port", prefs.port}
+      };
+      try {
+        std::ofstream out(prefsPath);
+        if (out.is_open()) {
+          out << j.dump(2) << std::endl;
+          out.close();
+          LOG_MSG << "Created default prefs.json at: " << prefsPath;
+        } else {
+          LOG_MSG << "Failed to create prefs.json at: " << prefsPath;
+        }
+      } catch (const std::exception &e) {
+        LOG_MSG << "Error writing prefs.json: " << e.what();
+      }
     }
     prefs.width = (std::min)((std::max)(prefs.width, 200), 1400);
     prefs.height = (std::min)((std::max)(prefs.height, 300), 1000);
-    return prefs;
   }
 
 
@@ -150,7 +174,8 @@ namespace {
 int main() {
   LOG_START;
   const std::string assetsPath = findWebAssets();
-  const auto prefs = readPrefsJson();
+  Prefs prefs;
+  fetchOrCreatePrefsJson(prefs);
 
   // Check assets BEFORE starting server
   if (assetsPath.empty()) {
@@ -169,10 +194,18 @@ int main() {
     LOG_MSG << req.method << " " << req.path << " -> " << res.status;
     });
 
-  svr.Get("/api/.*", [prefs](const httplib::Request &req, httplib::Response &res) {
+  svr.Get("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
     LOG_MSG << "svr.Get " << req.method << " " << req.path;
-    httplib::Client cli(prefs.host, prefs.port);
+    std::string host;
+    int port;
+    {
+      std::lock_guard<std::mutex> lock(prefs.mutex_);
+      host = prefs.host;
+      port = prefs.port;
+    }
+
+    httplib::Client cli(host, port);
     cli.set_connection_timeout(0, 60 * 1000ull);
     auto result = cli.Get(req.path.c_str());
     if (result) {
@@ -184,7 +217,7 @@ int main() {
     }
     });
 
-  svr.Post("/api/.*", [prefs](const httplib::Request &req, httplib::Response &res) {
+  svr.Post("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
     LOG_MSG << "svr.Post " << req.method << " " << req.path;
 
@@ -203,10 +236,17 @@ int main() {
 
       res.set_chunked_content_provider(
         "text/event-stream",
-        [prefs, req, &res, contentType](size_t offset, httplib::DataSink &sink) {
+        [&prefs, req, &res, contentType](size_t offset, httplib::DataSink &sink) {
           LOG_MSG << "Starting chunked content provider, offset: " << offset;
+          std::string host;
+          int port;
+          {
+            std::lock_guard<std::mutex> lock(prefs.mutex_);
+            host = prefs.host;
+            port = prefs.port;
+          }
 
-          httplib::Client cli(prefs.host, prefs.port);
+          httplib::Client cli(host, port);
           cli.set_connection_timeout(0, 60 * 1000ull);
 
           httplib::Headers headers = { {"Accept", "text/event-stream"} };
@@ -239,10 +279,16 @@ int main() {
         });
       
     } else {
-
       // Regular POST handling for non-streaming endpoints
+      std::string host;
+      int port;
+      {
+        std::lock_guard<std::mutex> lock(prefs.mutex_);
+        host = prefs.host;
+        port = prefs.port;
+      }
 
-      httplib::Client cli(prefs.host, prefs.port);
+      httplib::Client cli(host, port);
       cli.set_connection_timeout(0, 60 * 1000ull);
 
       auto result = cli.Post(req.path.c_str(), req.body, contentType);
@@ -282,15 +328,65 @@ int main() {
     w.set_title("RAG Code Assistant");
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
-    w.bind("sendToCpp", [](const std::string &msg) -> std::string {
-      LOG_MSG << "Message from Svelte: " << msg;
-      return "{\"status\": \"success\", \"message\": \"Received by C++\"}";
-      });
+    w.bind("sendUrlToCpp", [&prefs, &svr](const std::string &url) -> std::string
+      {
+        LOG_MSG << "New URL from client UI: " << url;
+        std::lock_guard<std::mutex> lock(prefs.mutex_);
+        try {
+          // Parse URL (simple parsing for this example)
+          size_t hostStart = url.find("://") + 3;
+          size_t portStart = url.find(":", hostStart);
+          size_t pathStart = url.find("/", hostStart);
+
+          std::string newHost;
+          int newPort = prefs.port;
+
+          if (portStart != std::string::npos) {
+            newHost = url.substr(hostStart, portStart - hostStart);
+            std::string portStr = url.substr(portStart + 1, pathStart - portStart - 1);
+            newPort = std::stoi(portStr);
+          } else {
+            newHost = url.substr(hostStart, pathStart - hostStart);
+          }
+
+          // Update preferences
+          prefs.host = newHost;
+          prefs.port = newPort;
+
+          // Save to prefs.json
+          const std::string prefsPath = getExecutableDir() + "/prefs.json";
+          nlohmann::json j;
+          j["window"] = {
+              {"width", prefs.width},
+              {"height", prefs.height}
+          };
+          j["api"] = {
+              {"host", prefs.host},
+              {"port", prefs.port}
+          };
+
+          std::ofstream out(prefsPath);
+          if (out.is_open()) {
+            out << j.dump(2) << std::endl;
+            out.close();
+            LOG_MSG << "Updated prefs.json with new server URL";
+          } else {
+            LOG_MSG << "Failed to update prefs.json";
+            return "{\"status\": \"error\", \"message\": \"Failed to save preferences\"}";
+          }
+
+          return "{\"status\": \"success\", \"message\": \"Server connection updated\"}";
+        } catch (const std::exception &e) {
+          LOG_MSG << "Error updating server connection: " << e.what();
+          return "{\"status\": \"error\", \"message\": \"" + std::string(e.what()) + "\"}";
+        }
+      }
+    );
 
     w.init(R"(
       window.cppApi = {
-        sendMessage: function(msg) {
-          return sendToCpp(msg);
+        sendServerUrl: function(url) {
+          return sendUrlToCpp(msg);
         }
       };
       window.addEventListener('error', function(e) {

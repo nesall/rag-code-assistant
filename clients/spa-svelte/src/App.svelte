@@ -10,6 +10,10 @@
   import { settings, temperature } from "./lib/store";
 
   onMount(() => {
+    fetchSettings();
+  });
+
+  function fetchSettings() {
     fetch(apiUrl("/api/settings"))
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -34,7 +38,7 @@
       .catch((err) => {
         clog("Error fetching /api/settings", err.message || err);
       });
-  });
+  }
 </script>
 
 <main
@@ -48,7 +52,7 @@
     </div>
   </div>
   <div class="w-full">
-    <Statusbar />
+    <Statusbar {fetchSettings} />
   </div>
 </main>
 

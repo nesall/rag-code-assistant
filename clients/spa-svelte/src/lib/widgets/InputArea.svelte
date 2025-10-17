@@ -34,10 +34,6 @@
   function onContextFiles(files: string[]) {
     filenames = [...files];
   }
-
-  function onAttachments(files: File[]) {
-    attachments = [...files];
-  }
 </script>
 
 <form class="flex flex-col space-y-2 w-full" onsubmit={onSubmit}>

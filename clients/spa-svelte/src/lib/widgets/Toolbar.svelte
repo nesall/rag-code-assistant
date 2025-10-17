@@ -158,24 +158,17 @@
     }
   }
 
-  async function onTestConnection() {
+  async function onSaveConnection() {
     try {
       let url = `${serverUrl}/api/health`;
       if (!url.startsWith("http")) {
         url = "http://" + url;
       }
-      const res = await fetch(url, {
-        method: "GET",
-      });
-      console.log(res);
-      if (res.ok) {
-        alert("Connection successful!");
-      } else {
-        alert(`Connection failed: ${res.statusText}`);
-      }
+      const res = await window.cppApi.sendServerUrl(url);
+      clog("onTestConnection", res);
     } catch (error) {
-      clog("Connection test failed:", error);
-      alert(`Connection failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      clog("Saving connection failed:", error);
+      alert(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 </script>
@@ -283,7 +276,10 @@
               <span class="whitespace-nowrap">Server:</span>
               <div class="flex items-center space-x-2">
                 <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
-                <button type="button" class="btn preset-tonal" onclick={onTestConnection}> Test connection </button>
+                <button type="button" class="btn preset-tonal flex items-center" onclick={onSaveConnection}>
+                  <icons.CircleCheckBig size={16}/>
+                  Save
+                </button>
               </div>
             </div>
           </div>

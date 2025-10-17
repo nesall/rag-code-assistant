@@ -28,6 +28,10 @@
   const filteredDocs = $derived(documents.filter((d) => d.path.includes(filterValue)));
 
   onMount(() => {
+    fetchFiles();
+  });
+
+  function fetchFiles() {
     const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
     fetch(apiUrl("/api/documents"))
       .then((response) => response.json())
@@ -43,7 +47,7 @@
       .catch((error) => {
         clog("Error fetching context files:", error);
       });
-  });
+  }
 
   function saveToSession() {
     sessionStorage.setItem(
@@ -56,6 +60,11 @@
         })),
       ),
     );
+  }
+
+  function onModalOpen() {
+    fetchFiles();
+    openState = true;
   }
 
   async function modalClose() {
@@ -89,7 +98,7 @@
     class="btn btn-sm flex items-center space-x-1 preset-filled-secondary-500 px-1 pr-2 h-5"
     disabled={loading}
     title="Explicitly insert files as context"
-    onclick={() => (openState = true)}
+    onclick={onModalOpen}
   >
     <icons.Plus size={16} />Add context
   </button>
@@ -164,7 +173,7 @@
             </span>
           </div>
         </Dialog.Description>
-        <Dialog.CloseTrigger class="btn preset-filled w-full">Finish</Dialog.CloseTrigger>
+        <Dialog.CloseTrigger class="btn preset-filled w-full" onclick={modalClose}>Finish</Dialog.CloseTrigger>
       </Dialog.Content>
     </Dialog.Positioner>
   </Portal>

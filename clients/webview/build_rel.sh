@@ -10,8 +10,8 @@ npm run build
 # Build the webview
 echo "Building webview..."
 cd ../webview
-mkdir -p build
-cd build
+mkdir -p build_rel
+cd build_rel
 cmake ..
 make -j$(nproc)
 
