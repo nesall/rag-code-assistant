@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { clog, getLastLogs } from "../utils";
   import Dropdown from "./Dropdown.svelte";
-  import { settings, temperature } from "../store";
+  import { messages, settings, temperature } from "../store";
 
   let openState = $state(false);
   let curTheme = $state("cerberus");
@@ -171,37 +171,22 @@
       alert(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
+
+  function onClear() {
+    messages.set([]);
+  }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
   <img src="/logo.png" alt="Logo" class="h-6 w-6" />
-  <span class="font-semibold text-sm text-surface-700-900"> RAG Code Assistant </span>
-  <!-- <button
-    type="button"
-    class="btn btn-sm h-8 px-0 rounded-full flex items-center"
-    aria-label="New Chat"
-    onclick={() => {
-      // Start a new chat
-      alert("New Chat clicked");
-    }}
-  >
-    <icons.Plus size={16} />
-    New Chat
-  </button>
-  <button
-    type="button"
-    class="btn btn-sm h-8 px-0 rounded-full flex items-center"
-    aria-label="Clear Chats"
-    onclick={() => {
-      // Clear chat history
-      alert("Clear Chats clicked");
-    }}
-  >
-    <icons.Trash2 size={16} />
-    Clear Chats
-  </button> -->
-
+  <span class="font-semibold text-sm text-surface-700-900"> Phenix Code Assistant </span>
+  <span class="w-4">&nbsp;</span>
   <div class="flex space-x-2 items-center ml-auto">
+    <button type="button" class="btn btn-sm flex items-center preset-tonal" aria-label="New Chat" onclick={onClear}>
+      <icons.Trash size={16} />
+      <span>Clear chat</span>
+    </button>
+
     <button
       type="button"
       class="btn btn-sm btn-icon px-1 hover:preset-tonal"
@@ -277,7 +262,7 @@
               <div class="flex items-center space-x-2">
                 <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
                 <button type="button" class="btn preset-tonal flex items-center" onclick={onSaveConnection}>
-                  <icons.CircleCheckBig size={16}/>
+                  <icons.CircleCheckBig size={16} />
                   Save
                 </button>
               </div>

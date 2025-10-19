@@ -9,6 +9,7 @@ call npm run build
 
 echo Building webview...
 cd ..\webview
+rm build_rel -rf
 mkdir build_rel
 cd build_rel
 cmake .. -DCMAKE_BUILD_TYPE=Release

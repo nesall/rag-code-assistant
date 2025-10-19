@@ -4,21 +4,21 @@
   import ContextFiles from "./ContextFiles.svelte";
 
   interface Props {
-    onSendMessage: (message: string, attachments: File[], filenames: string[]) => void;
+    onSendMessage: (message: string, attachments: File[]) => void;
+    sourceids: string[];
     loading: boolean;
   }
 
-  let { loading = false, onSendMessage }: Props = $props();
+  let { loading = false, sourceids = $bindable([]), onSendMessage }: Props = $props();
 
   let input = $state("");
 
   let attachments: File[] = $state([]);
-  let filenames: string[] = [];
 
   function onSubmit(e: Event) {
     e.preventDefault();
-    if (onSendMessage && (input.trim() || 0 < attachments.length || 0 < filenames.length)) {
-      onSendMessage(input.trim(), attachments, filenames);
+    if (onSendMessage && (input.trim() || 0 < attachments.length || 0 < sourceids.length)) {
+      onSendMessage(input.trim(), attachments);
       input = "";
       attachments = [];
     }
@@ -32,7 +32,7 @@
   }
 
   function onContextFiles(files: string[]) {
-    filenames = [...files];
+    sourceids = [...files];
   }
 </script>
 
@@ -66,8 +66,8 @@
       </div>
     </div>
     <div class="absolute2 left2-1 bottom2-1 flex flex-col space-y-2">
-      <FileAttachments loading={loading} bind:attachments={attachments} />
-      <ContextFiles loading={loading} onChange={onContextFiles} />
+      <FileAttachments {loading} bind:attachments />
+      <ContextFiles {loading} onChange={onContextFiles} />
     </div>
   </div>
 </form>

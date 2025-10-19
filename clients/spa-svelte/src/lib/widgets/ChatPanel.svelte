@@ -6,16 +6,7 @@
   import DOMPurify from "dompurify";
   import { renderMarkdown } from "../markdown";
   import { apiUrl, clog, toaster } from "../utils";
-  import { settings, temperature } from "../store";
-
-  interface ChatMessage {
-    role: "user" | "assistant" | "system";
-    content: string;
-    _html: string;
-    _userMessage?: string; // for role='user' when there are attachments
-    // _improved?: boolean; // user sent an improvement
-    // _improvedText?: string;
-  }
+  import { messages, settings, temperature } from "../store";
 
   $effect(() => {
     clog("ChatPanel $settings changed:", $state.snapshot($settings));
@@ -23,7 +14,7 @@
   });
 
   async function insertTestMessages() {
-    messages = [
+    $messages = [
       {
         role: "user",
         content: "Hello there!",
@@ -70,7 +61,7 @@
   let loading = $state(false);
   let messagesEndDiv: HTMLDivElement;
   let started = $state(false);
-  let messages = $state<ChatMessage[]>([]);
+  // let messages = $state<ChatMessage[]>([]);
   let showScrollBtn = $state(false);
 
   function checkMessagesEndVisibility() {
@@ -97,11 +88,10 @@
     if (messages) checkMessagesEndVisibility();
   });
 
-  let sourceidsLastUsed: string[] = [];
+  let sourceids: string[] = $state([]);
 
-  function onSendMessage(message: string, attachments: File[], sourceids: string[]) {
+  function onSendMessage(message: string, attachments: File[]) {
     if (!message.trim() && attachments.length === 0) return;
-    sourceidsLastUsed = [...sourceids];
     message = message.trim();
     if (attachments.length === 0) {
       sendMessage(message, [], sourceids, true);
@@ -185,12 +175,10 @@
     started = false;
     if (appendQ) {
       if (!input.trim()) return;
-      // const _userMessage = input.trim();
-      messages = [
-        ...messages,
+      $messages = [
+        ...$messages,
         {
           role: "user",
-          // _userMessage,
           content: input.trim(),
           _html: "",
         },
@@ -200,7 +188,7 @@
     }
     console.log("ChatPanel.sendMessage");
     try {
-      const messagesToSend = messages.map((m) => ({
+      const messagesToSend = $messages.map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -235,14 +223,14 @@
         if (done) break;
         const chunk = parseFromSSE(decoder.decode(value, { stream: true }));
         if (appended) {
-          let lm = messages[messages.length - 1];
+          let lm = $messages[$messages.length - 1];
           lm.content += chunk;
           lm._html = normalizeHeaders(await renderMarkdown(lm.content));
-          messages = messages;
+          $messages = $messages;
           tick().then(checkMessagesEndVisibility);
         } else {
-          messages = [
-            ...messages,
+          $messages = [
+            ...$messages,
             {
               role: "assistant",
               content: chunk,
@@ -253,14 +241,14 @@
           started = true;
         }
       }
-      let lm = messages[messages.length - 1];
+      let lm = $messages[$messages.length - 1];
       lm.content = processResponse(lm.content);
       lm._html = normalizeHeaders(await renderMarkdown(lm.content));
       // sendFeedback(0, '', '', true);
     } catch (error) {
       clog("Error sending message:", error);
-      messages = [
-        ...messages,
+      $messages = [
+        ...$messages,
         {
           role: "assistant",
           content: "Sorry, there was an error processing your request.",
@@ -291,7 +279,7 @@
   }
 
   function onEditMsg(index: number) {
-    const msg = messages[index];
+    const msg = $messages[index];
     if (msg.role !== "user") return;
     // Populate the input area with the message content for editing
     // This is a placeholder; actual implementation may vary
@@ -299,13 +287,13 @@
   }
 
   function onRetry(index: number) {
-    const msg = messages[index];
+    const msg = $messages[index];
     if (msg.role !== "assistant") return;
     if ((index & 1) === 1) {
-      const userMsg = messages[index - 1];
+      const userMsg = $messages[index - 1];
       if (userMsg && userMsg.role === "user") {
-        messages = messages.slice(0, index);
-        sendMessage(userMsg.content, [], sourceidsLastUsed, false);
+        $messages = $messages.slice(0, index);
+        sendMessage(userMsg.content, [], sourceids, false);
       } else {
         toaster.error({
           title: "Unpredicted error occurred when retrying an answer.",
@@ -315,7 +303,7 @@
   }
 
   function onThumbsFeedback(index: number, feedback: "good" | "bad") {
-    const msg = messages[index];
+    const msg = $messages[index];
     if (msg.role !== "assistant") return;
     // Send feedback to the backend or handle it accordingly
     // This is a placeholder; actual implementation may vary
@@ -325,23 +313,23 @@
 
 <div class="chat-panel p-4 pb-0 w-full h-full flex flex-col space-y-8">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
-    {#if messages.length === 0}
+    {#if $messages.length === 0}
       <p class="text-center text-surface-500">No messages yet. Start the conversation!</p>
     {/if}
-    {#each messages as msg, i}
+    {#each $messages as msg, i}
       {#if msg.role === "user"}
         <div class="flex flex-col items-end overflow-y-hidden box-border message" data-role="user">
           <div
             class="bg-primary-50-950 shadow2 rounded-xl whitespace-pre-wrap p-4 break-normal text-left message-content"
             id="user-message-{i}"
           >
-            {msg._userMessage || msg.content}
+            {msg.content}
           </div>
           <div class="flex gap-2 mt-1">
             <button
               type="button"
               class="btn btn-sm px-1"
-              onclick={() => onCopyMsg(msg._userMessage || msg.content)}
+              onclick={() => onCopyMsg(msg.content)}
               title="Copy to clipboard"
             >
               <icons.Copy size={16} />
@@ -433,6 +421,6 @@
         </button>
       </div>
     {/if}
-    <InputArea {onSendMessage} {loading} />
+    <InputArea {onSendMessage} bind:sourceids {loading} />
   </div>
 </div>

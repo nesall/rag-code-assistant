@@ -17,3 +17,8 @@ interface ModelItem {
   combinedPrice: number;
 }
 
+interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  _html: string;
+}

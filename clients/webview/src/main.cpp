@@ -1,7 +1,7 @@
 #include <webview/webview.h>
 #include <httplib.h>
 #include <nlohmann/json.hpp>
-#include <ulogger.hpp>
+#include <utils_log/logger.hpp>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -68,7 +68,6 @@ namespace {
 
   void fetchOrCreatePrefsJson(Prefs &prefs) {
     LOG_START;
-    Prefs prefs;
     const std::string exeDir = getExecutableDir();
     static std::vector<std::string> paths = {
       exeDir + "/prefs.json",
