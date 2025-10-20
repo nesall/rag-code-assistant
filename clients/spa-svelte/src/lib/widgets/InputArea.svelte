@@ -13,6 +13,8 @@
 
   let input = $state("");
 
+  let nofInputRows = $state(2);
+
   let attachments: File[] = $state([]);
 
   function onSubmit(e: Event) {
@@ -29,6 +31,14 @@
       ke.preventDefault();
       onSubmit(ke);
     }
+  }
+
+  function onTextareaChange(e: Event) {
+    const el = e.target as HTMLTextAreaElement;
+    let str = el.value || "";
+    const count = (str.match(/\r\n|\r|\n/g) || []).length;
+
+    nofInputRows = Math.max(2, Math.min(10, count + 1));
   }
 
   function onContextFiles(files: string[]) {
@@ -48,11 +58,12 @@
         placeholder="Type a message (Shift+Enter to add a new line)"
         id="msg-input"
         dir="auto"
-        rows="5"
+        rows={nofInputRows}
         maxlength="4000"
         bind:value={input}
         disabled={loading}
         onkeydown={onTextereaKeyDown}
+        oninput={onTextareaChange}
       ></textarea>
       <div class="flex flex-col items-center gap-4 ml-2 absolute right-0 top-0">
         <button
