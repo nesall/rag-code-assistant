@@ -52,7 +52,7 @@ const renderer: RendererObject = {
           onclick="navigator.clipboard.writeText(document.getElementById('${codeId}').innerText)">
           Copy
         </button>
-        <pre class="bg-surface-100-900 py-4 px-8 rounded"><code id="${codeId}" class="code text-xs whitespace-pre-wrap break-words">${text}</code></pre>
+        <pre class="bg-surface-100-900 py-4 px-8 rounded leading-none"><code id="${codeId}" class="code text-xs whitespace-pre-wrap break-words">${text}</code></pre>
       </div>
     `;
   },
