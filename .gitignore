@@ -130,3 +130,7 @@ lcov.info
 # Benchmarks output
 benchmarks/results/
 *.prof
+
+
+# Other stuff
+*.zip
