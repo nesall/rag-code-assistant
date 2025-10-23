@@ -1,26 +1,28 @@
+@echo off
+setlocal
 
-cd backend/embedder-cpp
+set NAME=phenixcode_v1
+set EMBEDDER=backend/embedder-cpp
+set WEBVIEW=clients/webview
 
+cd %EMBEDDER%
 call build_rel.bat
+echo FINISHED %EMBEDDER%
 
-echo "FINISHED embedder-cpp"
-
-cd ../../clients/webview
-
+cd ../../%WEBVIEW%
 call build_rel.bat
-
 cd ../..
 
-rm phenixcode_v1 -rf
+rm -rf %NAME%
+mkdir %NAME%
 
-mkdir phenixcode_v1 
+cp %EMBEDDER%/dist/* %NAME% -rf
+cp %WEBVIEW%/dist/* %NAME% -rf
 
-cp backend/embedder-cpp/dist/* phenixcode_v1 -rf
-cp clients/webview/dist/* phenixcode_v1 -rf
+echo %NAME%.zip...
+powershell -NoProfile -Command "Compress-Archive -Path '%NAME%' -DestinationPath '%NAME%.zip' -Force"
 
+rm -rf %NAME%/
+echo Package '%NAME%' ready.
 
-echo phenixcode_v1.zip...
-powershell -NoProfile -Command "Compress-Archive -Path 'phenixcode_v1\*' -DestinationPath 'phenixcode_v1.zip' -Force"
-
-rm phenixcode_v1/ -rf
-
+endlocal
