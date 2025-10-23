@@ -20,6 +20,7 @@ cp -r "$EMBEDDER/dist/"* "$NAME/"
 cp -r "$WEBVIEW/dist/"* "$NAME/"
 
 echo "$NAME.zip..."
+rm -f "$NAME.zip"
 zip -r "$NAME.zip" "$NAME" >/dev/null
 
 rm -rf "$NAME"

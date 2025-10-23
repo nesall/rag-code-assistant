@@ -19,10 +19,11 @@ mkdir %NAME%
 cp %EMBEDDER%/dist/* %NAME% -rf
 cp %WEBVIEW%/dist/* %NAME% -rf
 
+rm -f %NAME%.zip
 echo %NAME%.zip...
 powershell -NoProfile -Command "Compress-Archive -Path '%NAME%' -DestinationPath '%NAME%.zip' -Force"
 
 rm -rf %NAME%/
-echo Package '%NAME%' ready.
+echo Package '%NAME%.zip' ready.
 
 endlocal
