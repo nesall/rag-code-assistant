@@ -67,7 +67,6 @@ TODO.md
 build/
 cmake-build-*/
 bin/
-lib/
 *.so
 *.dll
 *.dylib
