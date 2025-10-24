@@ -2,7 +2,7 @@
   import * as icons from "@lucide/svelte";
   import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { clog, getLastLogs } from "../utils";
+  import { apiUrl, clog, getLastLogs } from "../utils";
   import Dropdown from "./Dropdown.svelte";
   import { messages, settings, temperature } from "../store";
 
@@ -11,6 +11,29 @@
   let serverUrl = $state("localhost:8081");
 
   let openLogsState = $state(false);
+  let openStatsState = $state(false);
+
+  interface StatsType {
+    sources: {
+      by_directory: Record<string, number>;
+      by_language: Record<string, number>;
+      top_files: {
+        chunks: number;
+        language: string;
+        last_modified: number;
+        lines: number;
+        path: string;
+        size_bytes: number;
+      }[];
+      total_files: number;
+      total_lines: number;
+      total_size_bytes: number;
+    };
+    total_chunks: number;
+    vector_count: number;
+  }
+
+  let statsData: StatsType | undefined = $state();
 
   const themeOptions = [
     { label: "Cerberus", value: "cerberus" },
@@ -175,22 +198,27 @@
   function onClear() {
     messages.set([]);
   }
+
+  function onViewStats() {
+    fetch(apiUrl("/api/stats"))
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("STATS", data);
+        statsData = data;
+      });
+    openStatsState = true;
+  }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
   <img src="/logo.png" alt="Logo" class="h-6 w-6" />
   <span class="font-semibold text-sm text-surface-700-900"> Phenix Code Assistant </span>
   <span class="w-4">&nbsp;</span>
-  <div class="flex space-x-2 items-center ml-auto">
-    <button type="button" class="btn btn-sm flex items-center preset-tonal" aria-label="New Chat" onclick={onClear}>
-      <icons.Trash size={16} />
-      <span>Clear chat</span>
-    </button>
-
+  <div class="flex space-x-1 items-center ml-auto">
     <button
       type="button"
-      class="btn btn-sm btn-icon px-1 hover:preset-tonal"
-      aria-label="Settings"
+      class="btn btn-sm btn-icon hover:preset-tonal"
+      aria-label="Download"
       onclick={onDownloadChat}
       title="Download chat as text file"
     >
@@ -198,26 +226,45 @@
     </button>
 
     <span class="vr h-6"></span>
-    <div class="flex space-x-1 items-center px-1">
-      <button
-        type="button"
-        class="btn btn-sm btn-icon px-1 hover:preset-tonal"
-        aria-label="Dark/Light Mode"
-        onclick={onToggleDarkMode}
-      >
-        <icons.SunMoon />
-      </button>
-    </div>
+
     <button
       type="button"
-      class="btn btn-sm btn-icon px-1 hover:preset-tonal"
+      class="btn btn-sm btn-icon hover:preset-tonal"
+      aria-label="Statistics"
+      onclick={onViewStats}
+      title="View statistics"
+    >
+      <icons.Info />
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-icon hover:preset-tonal"
       aria-label="Settings"
       onclick={() => {
         curTheme = document.documentElement.getAttribute("data-theme") || "cerberus";
         openState = true;
       }}
+      title="Edit settings"
     >
       <icons.Settings />
+    </button>
+    <button
+      type="button"
+      class="btn btn-sm btn-icon hover:preset-tonal"
+      aria-label="Dark/Light Mode"
+      onclick={onToggleDarkMode}
+    >
+      <icons.SunMoon />
+    </button>
+    <span class="vr h-6"></span>
+    <button
+      type="button"
+      class="btn btn-sm btn-icon flex hover:preset-tonal"
+      aria-label="New Chat"
+      onclick={onClear}
+      title="Clear chat"
+    >
+      <icons.Trash2 />
     </button>
   </div>
 </div>
@@ -297,6 +344,113 @@
           {#each getLastLogs() as log}<div class="flex items-center space-x-1"><span>{log.date}</span><span>&nbsp;</span
                   ><span>{log.data}</span></div>{/each}
         </pre>
+          </div>
+        </Dialog.Description>
+        <Dialog.CloseTrigger class="btn preset-filled w-full">Close</Dialog.CloseTrigger>
+      </Dialog.Content>
+    </Dialog.Positioner>
+  </Portal>
+</Dialog>
+
+<Dialog open={openStatsState} onOpenChange={(e) => (openStatsState = e.open)}>
+  <Portal>
+    <Dialog.Backdrop class="" />
+    <Dialog.Positioner class="fixed inset-0 z-50 flex justify-center items-center">
+      <Dialog.Content class="card bg-surface-100-900 w-xl p-4 space-y-2 shadow-xl">
+        <Dialog.Title class="text-lg font-bold">Stats</Dialog.Title>
+        <hr class="hr" />
+        <Dialog.Description>
+          <div class="whitespace-pre-wrap font-mono2 text-xs max-h-[60vh] overflow-y-auto">
+            <div class="flex flex-col space-y-2">
+              <div class="flex items-center gap-4">
+                <span class="flex-1 text-right">Total chunks</span>
+                <span class="flex-1">{statsData?.total_chunks}</span>
+              </div>
+
+              <div class="flex items-center gap-4">
+                <span class="flex-1 text-right">Vector count</span>
+                <span class="flex-1">{statsData?.vector_count}</span>
+              </div>
+
+              <div class="flex flex-col">
+                <span class="font-semibold uppercase">Sources:</span>
+
+                <div class="ml-4">
+                  <div class="flex items-center gap-4">
+                    <span class="flex-1 text-right">Total files</span>
+                    <span class="flex-1">{statsData?.sources.total_files}</span>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <span class="flex-1 text-right">Total lines</span>
+                    <span class="flex-1">{statsData?.sources.total_lines}</span>
+                  </div>
+
+                  <div class="flex items-center gap-4">
+                    <span class="flex-1 text-right">Total size (bytes)</span>
+                    <span class="flex-1">{statsData?.sources.total_size_bytes}</span>
+                  </div>
+
+                  <div class="flex flex-col">
+                    <span class="font-semibold mt-2">By Directory:</span>
+                    <div class="ml-4">
+                      {#each Object.entries(statsData?.sources.by_directory || {}) as [dir, count]}
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">{dir}</span>
+                          <span class="flex-1">{count}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col mt-2">
+                    <span class="font-semibold">By Language:</span>
+                    <div class="ml-4">
+                      {#each Object.entries(statsData?.sources.by_language || {}) as [lang, count]}
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">{lang}</span>
+                          <span class="flex-1">{count}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+
+                  <div class="flex flex-col mt-2">
+                    <span class="font-semibold">Top Files:</span>
+                    <div class="ml-4">
+                      {#each statsData?.sources.top_files || [] as file}
+                        <div class="flex flex-col border-b border-gray-200 py-1">
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Path</span>
+                            <span class="flex-1">{file.path}</span>
+                          </div>
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Language</span>
+                            <span class="flex-1">{file.language}</span>
+                          </div>
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Chunks</span>
+                            <span class="flex-1">{file.chunks}</span>
+                          </div>
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Lines</span>
+                            <span class="flex-1">{file.lines}</span>
+                          </div>
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Size (bytes)</span>
+                            <span class="flex-1">{file.size_bytes}</span>
+                          </div>
+                          <div class="flex items-center gap-4">
+                            <span class="flex-1 text-right">Last Modified</span>
+                            <span class="flex-1">{new Date(file.last_modified * 1000).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </Dialog.Description>
         <Dialog.CloseTrigger class="btn preset-filled w-full">Close</Dialog.CloseTrigger>
