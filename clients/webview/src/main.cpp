@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <format>
 #include <sstream>
 #include <atomic>
 #include <fstream>
@@ -324,7 +325,7 @@ int main() {
 
     webview::webview w(true, nullptr);
     setAppIcon(w, "logo");
-    w.set_title("RAG Code Assistant");
+    w.set_title(std::format("Phenix Code Assistant - v1.0 [build date: {} {}]", __DATE__, __TIME__));
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
     w.bind("sendUrlToCpp", [&prefs, &svr](const std::string &url) -> std::string
