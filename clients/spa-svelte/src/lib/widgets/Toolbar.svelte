@@ -85,11 +85,14 @@
 
   function setDarkOrLight(dl: string | null) {
     clog("setDarkOrLight", dl);
+    const themeLink = document.getElementById('hljs-theme') as HTMLLinkElement;
     const htmlEl = document.documentElement;
     if (dl === "dark") {
       htmlEl.setAttribute("data-mode", "dark");
+      themeLink.href = 'hljs/vs2015.css';
     } else {
       htmlEl.setAttribute("data-mode", "light");
+      themeLink.href = 'hljs/vs.css';
     }
   }
 

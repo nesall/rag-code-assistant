@@ -258,6 +258,10 @@
     } finally {
       loading = false;
       started = false;
+      // if (window.PR && window.PR.prettyPrint) {
+      //   window.PR.prettyPrint();
+      // }
+      if (window.HLJS_CUSTOM && window.HLJS_CUSTOM.initHljs) window.HLJS_CUSTOM.initHljs();
     }
   }
 
