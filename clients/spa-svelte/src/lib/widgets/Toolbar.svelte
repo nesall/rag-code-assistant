@@ -391,7 +391,7 @@
                     <span class="flex-1">{statsData?.sources.total_size_bytes}</span>
                   </div>
 
-                  <div class="flex flex-col">
+                  <div class="flex flex-col whitespace-normal">
                     <span class="font-semibold mt-2">By Directory:</span>
                     <div class="ml-4">
                       {#each Object.entries(statsData?.sources.by_directory || {}) as [dir, count]}
@@ -415,7 +415,7 @@
                     </div>
                   </div>
 
-                  <div class="flex flex-col mt-2">
+                  <div class="flex flex-col mt-2 whitespace-normal">
                     <span class="font-semibold">Top Files:</span>
                     <div class="ml-4">
                       {#each statsData?.sources.top_files || [] as file}
@@ -458,3 +458,9 @@
     </Dialog.Positioner>
   </Portal>
 </Dialog>
+
+<style>
+  .text-right {
+    font-weight: 300;
+  }
+</style>
