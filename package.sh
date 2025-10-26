@@ -25,4 +25,4 @@ zip -r "$NAME.zip" "$NAME" >/dev/null
 
 rm -rf "$NAME"
 
-echo "Package '$NAME' ready."
+echo "Package '$NAME.zip' ready."
