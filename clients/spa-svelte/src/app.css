@@ -29,5 +29,36 @@
   overflow-y: hidden;
 }
 
-.hljs { background: none !important; color: inherit; }
+.hljs {
+  background: none !important;
+  color: inherit;
+}
 
+.hljs-title {
+  color: inherit;
+}
+
+html[data-mode="light"] .hljs-keyword,
+html[data-mode="light"] .hljs-meta {
+  color: #8F08C4 !important;
+}
+
+html[data-mode="light"] .hljs-selector-tag,
+html[data-mode="light"] .hljs-built_in,
+html[data-mode="light"] .hljs-name,
+html[data-mode="light"] .hljs-tag {
+  color: slategray
+}
+
+html[data-mode="light"] .hljs-number {
+  color: #800080;
+}
+
+html[data-mode="light"] .hljs-section,
+html[data-mode="light"] .hljs-attribute,
+html[data-mode="light"] .hljs-literal,
+html[data-mode="light"] .hljs-template-tag,
+html[data-mode="light"] .hljs-template-variable,
+html[data-mode="light"] .hljs-type {
+  color: #2B91AF
+}
