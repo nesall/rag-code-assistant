@@ -197,7 +197,7 @@
         >
           {labelStr(item)}
           {#if descStr(item)}
-            <span class="text-surface-500">
+            <span class="text-surface-500 text-right">
               {descStr(item)}
             </span>
           {/if}
