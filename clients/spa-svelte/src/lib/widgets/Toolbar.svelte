@@ -61,6 +61,11 @@
       : "",
   );
 
+  let instances: { value: string; label: string; desc: string }[] = $state([]);
+  let curInstance: string = $state("");
+
+  let hasCppApi = $state(!!window.cppApi);
+
   onMount(() => {
     console.log("Toolbar onMount");
     try {
@@ -73,6 +78,8 @@
       setDarkOrLight(savedDarkLight);
 
       serverUrl = localStorage.getItem("serverUrl") || serverUrl;
+
+      fetchInstances();
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -85,14 +92,14 @@
 
   function setDarkOrLight(dl: string | null) {
     clog("setDarkOrLight", dl);
-    const themeLink = document.getElementById('hljs-theme') as HTMLLinkElement;
+    const themeLink = document.getElementById("hljs-theme") as HTMLLinkElement;
     const htmlEl = document.documentElement;
     if (dl === "dark") {
       htmlEl.setAttribute("data-mode", "dark");
-      themeLink.href = 'hljs/vs2015.css';
+      themeLink.href = "hljs/vs2015.css";
     } else {
       htmlEl.setAttribute("data-mode", "light");
-      themeLink.href = 'hljs/vs.css';
+      themeLink.href = "hljs/vs.css";
     }
   }
 
@@ -211,11 +218,43 @@
       });
     openStatsState = true;
   }
+
+  async function fetchInstances() {
+    const res = await fetch(apiUrl("/api/instances"));
+    const data = await res.json();
+    console.log("Instances", data);
+    instances = data.instances.map((a: { id: string; host: string; port: number; name: string }) => {
+      return {
+        value: a.id,
+        label: `${a.name}`,
+        desc: `${a.host}:${a.port}`,
+      };
+    });
+    curInstance = data.current_instance;
+  }
+
+  async function onProjectChange(i: number, modelId: string) {
+    if (window.cppApi) {
+      const res = await window.cppApi.sendServerUrl(instances[i].desc);
+      console.log("onProjectChange", res);
+    } else {
+      alert("Switching backends is not implemented on the web mode.");
+    }
+  }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
   <img src="/logo.png" alt="Logo" class="h-6 w-6" />
-  <span class="font-semibold text-sm text-surface-700-900"> Phenix Code Assistant </span>
+  <span class="text-sm">Project</span>
+  <span class="text-xs text-surface-700-900">
+    <Dropdown
+      values={instances}
+      value={curInstance}
+      onChange={onProjectChange}
+      classNames="py-[2px] min-w-[10rem] preset-tonal"
+      onAboutToShow={fetchInstances}
+    />
+  </span>
   <span class="w-4">&nbsp;</span>
   <div class="flex space-x-1 items-center ml-auto">
     <button
@@ -307,16 +346,18 @@
                 onchange={onTempChange}
               />
             </div>
-            <div class="flex flex-col space-x-2 items-left w-full">
-              <span class="whitespace-nowrap">Server:</span>
-              <div class="flex items-center space-x-2">
-                <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
-                <button type="button" class="btn preset-tonal flex items-center" onclick={onSaveConnection}>
-                  <icons.CircleCheckBig size={16} />
-                  Save
-                </button>
+            {#if hasCppApi}
+              <div class="flex flex-col space-x-2 items-left w-full">
+                <span class="whitespace-nowrap">Server:</span>
+                <div class="flex items-center space-x-2">
+                  <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
+                  <button type="button" class="btn preset-tonal flex items-center" onclick={onSaveConnection}>
+                    <icons.CircleCheckBig size={16} />
+                    Save
+                  </button>
+                </div>
               </div>
-            </div>
+            {/if}
           </div>
         </Dialog.Description>
         <footer class="flex justify-end gap-4 pt-4">
@@ -422,7 +463,7 @@
                     <span class="font-semibold">Top Files:</span>
                     <div class="ml-4">
                       {#each statsData?.sources.top_files || [] as file}
-                        <div class="flex flex-col border-b border-gray-200 py-1">
+                        <div class="flex flex-col border-b border-surface-200-800 py-1">
                           <div class="flex items-center gap-4">
                             <span class="flex-1 text-right">Path</span>
                             <span class="flex-1">{file.path}</span>

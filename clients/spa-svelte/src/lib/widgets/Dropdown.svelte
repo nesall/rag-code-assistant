@@ -11,6 +11,7 @@
     id?: string;
     classNames?: string;
     onChange?: (i: number, value: string) => void;
+    onAboutToShow?: () => void;
   }
 
   let {
@@ -19,6 +20,7 @@
     id = nextRandomId(4),
     classNames = "preset-outlined-surface-500",
     onChange = (i: number, value: string) => {},
+    onAboutToShow = async () => {},
   }: Props = $props();
 
   function valueStr(v: string | { value: string; label: string }) {
@@ -119,7 +121,8 @@
     setTimeout(() => (show = false), 100);
   }
 
-  function onClick() {
+  async function onClick() {
+    if (!show) await Promise.resolve(onAboutToShow());
     show = !show;
   }
 
@@ -178,7 +181,7 @@
   {#if show}
     <div
       id="{id}-dropdown-list"
-      style="position: fixed; width: {anchorWidth}px; z-index: 1000;"
+      style="position: fixed; width: {elemAnchor.offsetWidth}px; z-index: 1000;"
       class="dropdown-list rounded shadow flex flex-col max-h-48 overflow-y-auto absolute2"
       role="listbox"
       bind:this={elemFloat}

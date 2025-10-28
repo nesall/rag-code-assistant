@@ -28,6 +28,21 @@ namespace fs = std::filesystem;
 
 namespace {
 
+  //std::vector<int> discoverAvailableBackends(const std::string &host, int startPort, int maxPortsToCheck = 10) {
+  //  std::vector<int> availablePorts;
+  //  for (int port = startPort; port < startPort + maxPortsToCheck; port++) {
+  //    httplib::Client cli(host, port);
+  //    cli.set_connection_timeout(1, 0); // 1 second timeout
+  //    if (auto res = cli.Get("/api/health")) {
+  //      if (res->status == 200) {
+  //        availablePorts.push_back(port);
+  //        LOG_MSG << "Found backend on port: " << port;
+  //      }
+  //    }
+  //  }
+  //  return availablePorts;
+  //}
+
   std::string getExecutableDir() {
     LOG_START;
 #ifdef _WIN32
@@ -62,7 +77,7 @@ namespace {
   struct Prefs {
     int width = 700;
     int height = 900;
-    int port = 8081;
+    int port = 8590;
     std::string host = "127.0.0.1";
     mutable std::mutex mutex_;
   };
@@ -71,9 +86,9 @@ namespace {
     LOG_START;
     const std::string exeDir = getExecutableDir();
     static std::vector<std::string> paths = {
-      exeDir + "/prefs.json",
-      exeDir + "/../prefs.json",
-      exeDir + "/../../prefs.json"
+      exeDir + "/appconfig.json",
+      exeDir + "/../appconfig.json",
+      exeDir + "/../../appconfig.json"
     };
     std::string prefsPath;
     for (const auto &path : paths) {
@@ -107,10 +122,10 @@ namespace {
           }
         }
       } catch (const std::exception &e) {
-        LOG_MSG << "Error parsing prefs.json: " << e.what();
+        LOG_MSG << "Error parsing appconfig.json: " << e.what();
       }
     } else {
-      // Create prefs.json at paths[0]
+      // Create appconfig.json at paths[0]
       prefsPath = paths[0];
       nlohmann::json j;
       j["window"] = {
@@ -126,12 +141,12 @@ namespace {
         if (out.is_open()) {
           out << j.dump(2) << std::endl;
           out.close();
-          LOG_MSG << "Created default prefs.json at: " << prefsPath;
+          LOG_MSG << "Created default appconfig.json at: " << prefsPath;
         } else {
-          LOG_MSG << "Failed to create prefs.json at: " << prefsPath;
+          LOG_MSG << "Failed to create appconfig.json at: " << prefsPath;
         }
       } catch (const std::exception &e) {
-        LOG_MSG << "Error writing prefs.json: " << e.what();
+        LOG_MSG << "Error writing appconfig.json: " << e.what();
       }
     }
     prefs.width = (std::min)((std::max)(prefs.width, 200), 1400);
@@ -174,16 +189,15 @@ namespace {
 int main() {
   LOG_START;
   const std::string assetsPath = findWebAssets();
-  Prefs prefs;
-  fetchOrCreatePrefsJson(prefs);
-
-  // Check assets BEFORE starting server
   if (assetsPath.empty()) {
     LOG_MSG << "Error: Could not find web assets (index.html)";
     LOG_MSG << "Please build the SPA client first:";
     LOG_MSG << "  cd ../spa-svelte && npm run build";
     return 1;
   }
+
+  Prefs prefs;
+  fetchOrCreatePrefsJson(prefs);
 
   LOG_MSG << "Loading Svelte app from: " << fs::absolute(assetsPath).string();
 
@@ -193,6 +207,17 @@ int main() {
   svr.set_logger([](const auto &req, const auto &res) {
     LOG_MSG << req.method << " " << req.path << " -> " << res.status;
     });
+
+  //svr.Get("/api/ports", [&prefs](const httplib::Request &req, httplib::Response &res) {
+  //  LOG_START;
+  //  std::vector<int> availablePorts = discoverAvailableBackends(prefs.host, prefs.port);
+  //  nlohmann::json response = {
+  //      {"availablePorts", availablePorts},
+  //      {"currentPort", prefs.port},
+  //      {"host", prefs.host}
+  //  };
+  //  res.set_content(response.dump(), "application/json");
+  //  });
 
   svr.Get("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
@@ -353,8 +378,8 @@ int main() {
           prefs.host = newHost;
           prefs.port = newPort;
 
-          // Save to prefs.json
-          const std::string prefsPath = getExecutableDir() + "/prefs.json";
+          // Save to appconfig.json
+          const std::string prefsPath = getExecutableDir() + "/appconfig.json";
           nlohmann::json j;
           j["window"] = {
               {"width", prefs.width},
@@ -369,9 +394,9 @@ int main() {
           if (out.is_open()) {
             out << j.dump(2) << std::endl;
             out.close();
-            LOG_MSG << "Updated prefs.json with new server URL";
+            LOG_MSG << "Updated appconfig.json with new server URL";
           } else {
-            LOG_MSG << "Failed to update prefs.json";
+            LOG_MSG << "Failed to update appconfig.json";
             return "{\"status\": \"error\", \"message\": \"Failed to save preferences\"}";
           }
 
