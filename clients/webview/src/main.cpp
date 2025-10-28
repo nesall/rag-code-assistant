@@ -304,13 +304,13 @@ int main() {
     });
 
   std::atomic<bool> serverReady{ false };
-  const int port = 8709;
 
-  std::thread serverThread([&svr, &serverReady, port]() {
+  const int serverPort = svr.bind_to_any_port("127.0.0.1");
+  std::thread serverThread([&svr, &serverReady, serverPort]() {
     LOG_START;
-    LOG_MSG << "Starting HTTP server on http://127.0.0.1:" << port;
+    LOG_MSG << "Starting HTTP server on http://127.0.0.1:" << serverPort;
     serverReady = true;
-    svr.listen("127.0.0.1", port);
+    svr.listen_after_bind();
     LOG_MSG << "HTTP server stopped";
     });
 
@@ -386,7 +386,7 @@ int main() {
     w.init(R"(
       window.cppApi = {
         sendServerUrl: function(url) {
-          return sendUrlToCpp(msg);
+          return sendUrlToCpp(url);
         }
       };
       window.addEventListener('error', function(e) {
@@ -395,7 +395,7 @@ int main() {
       console.log('Webview initialized, location:', window.location.href);
     )");
 
-    const std::string url = "http://127.0.0.1:" + std::to_string(port);
+    const std::string url = "http://127.0.0.1:" + std::to_string(serverPort);
     LOG_MSG << "Navigating to: " << url;
 
     w.navigate(url);

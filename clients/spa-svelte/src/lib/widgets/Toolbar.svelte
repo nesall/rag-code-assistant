@@ -8,7 +8,7 @@
 
   let openState = $state(false);
   let curTheme = $state("cerberus");
-  let serverUrl = $state("localhost:8081");
+  let serverUrl = $state("127.0.0.1:8590");
 
   let openLogsState = $state(false);
   let openStatsState = $state(false);
