@@ -21,6 +21,7 @@
     lastModified: number;
     _visible?: boolean;
     _name: string;
+    _strippedPath: string;
     _checked: boolean;
   }
   let documents: Document[] = $state([]);
@@ -31,14 +32,31 @@
     fetchFiles();
   });
 
+  function stripCommonPrefix(paths: string[]) {
+    if (!paths.length) return [];
+    const splitPaths = paths.map((p) => p.replaceAll("\\", "/").split("/"));
+    const minLen = Math.min(...splitPaths.map((p) => p.length));
+    let prefixLen = 0;
+    for (let i = 0; i < minLen; i++) {
+      const segment = splitPaths[0][i];
+      if (splitPaths.every((p) => p[i] === segment)) prefixLen++;
+      else break;
+    }
+    return splitPaths.map((p) => p.slice(prefixLen).join("/"));
+  }
+
   function fetchFiles() {
     const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
     fetch(apiUrl("/api/documents"))
       .then((response) => response.json())
       .then((data) => {
-        documents = data.map((doc: any) => ({
+        const paths = data.map((d: any) => d.path);
+        const strippedPaths = stripCommonPrefix(paths);
+
+        documents = data.map((doc: any, i: number) => ({
           ...doc,
           _name: doc.path.split("/").pop() || doc.path,
+          _strippedPath: strippedPaths[i],
           _visible: saved.find((d: any) => d.path === doc.path)?._visible || false,
           _checked: saved.find((d: any) => d.path === doc.path)?._checked || false,
         }));
@@ -160,7 +178,7 @@
                       ", Last modified " +
                       new Date(doc.lastModified * 1000).toLocaleString()}
                   >
-                    {doc.path}
+                    {doc._strippedPath}
                   </label>
                 </div>
               {/each}
