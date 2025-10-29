@@ -28,21 +28,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-  //std::vector<int> discoverAvailableBackends(const std::string &host, int startPort, int maxPortsToCheck = 10) {
-  //  std::vector<int> availablePorts;
-  //  for (int port = startPort; port < startPort + maxPortsToCheck; port++) {
-  //    httplib::Client cli(host, port);
-  //    cli.set_connection_timeout(1, 0); // 1 second timeout
-  //    if (auto res = cli.Get("/api/health")) {
-  //      if (res->status == 200) {
-  //        availablePorts.push_back(port);
-  //        LOG_MSG << "Found backend on port: " << port;
-  //      }
-  //    }
-  //  }
-  //  return availablePorts;
-  //}
-
   std::string getExecutableDir() {
     LOG_START;
 #ifdef _WIN32
@@ -207,17 +192,6 @@ int main() {
   svr.set_logger([](const auto &req, const auto &res) {
     LOG_MSG << req.method << " " << req.path << " -> " << res.status;
     });
-
-  //svr.Get("/api/ports", [&prefs](const httplib::Request &req, httplib::Response &res) {
-  //  LOG_START;
-  //  std::vector<int> availablePorts = discoverAvailableBackends(prefs.host, prefs.port);
-  //  nlohmann::json response = {
-  //      {"availablePorts", availablePorts},
-  //      {"currentPort", prefs.port},
-  //      {"host", prefs.host}
-  //  };
-  //  res.set_content(response.dump(), "application/json");
-  //  });
 
   svr.Get("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;

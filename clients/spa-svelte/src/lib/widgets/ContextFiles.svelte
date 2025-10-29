@@ -128,7 +128,7 @@
             <p>No context files available.</p>
           {:else}
             <div class="whitespace-wrap text-sm mb-4">
-              Selected documents can be explicitly included in the context.
+              Selected documents will be explicitly included in the context.
             </div>
 
             <input type="text" class="input text-sm my-1" placeholder="Type to filter" bind:value={filterValue} />
