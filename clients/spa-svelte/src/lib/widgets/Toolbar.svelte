@@ -238,7 +238,7 @@
       const res = await window.cppApi.sendServerUrl(instances[i].desc);
       console.log("onProjectChange", res);
     } else {
-      alert("Switching backends is not implemented on the web mode.");
+      alert("Switching backends is not implemented in web mode.");
     }
   }
 </script>

@@ -134,6 +134,7 @@ namespace {
         LOG_MSG << "Error writing appconfig.json: " << e.what();
       }
     }
+    if (prefs.host == "localhost") prefs.host = "127.0.0.1";
     prefs.width = (std::min)((std::max)(prefs.width, 200), 1400);
     prefs.height = (std::min)((std::max)(prefs.height, 300), 1000);
   }
@@ -347,6 +348,7 @@ int main() {
           } else {
             newHost = url.substr(hostStart, pathStart - hostStart);
           }
+          if (newHost == "localhost") newHost = "127.0.0.1";
 
           // Update preferences
           prefs.host = newHost;
