@@ -267,6 +267,7 @@ int main() {
             LOG_MSG << "Error: Backend streaming unavailable";
             res.status = 503;
             res.set_content("{\"error\": \"Backend streaming unavailable\"}", "application/json");
+            return false;
           }
           if (postRes->status != 200) {
             LOG_MSG << "Error: Backend streaming returned status " << postRes->status;
