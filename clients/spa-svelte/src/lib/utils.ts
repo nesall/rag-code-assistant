@@ -76,6 +76,23 @@ export function isPtInRect(rc: DOMRect, x: number, y: number) {
   return rc.x <= x && x < rc.x + rc.width && rc.y <= y && y < rc.y + rc.height;
 }
 
+export function isGoodArray(a: any) {
+  return a && Array.isArray(a) && a.length;
+}
+
+
+export function stripCommonPrefix(paths: string[]) {
+  if (!paths.length) return [];
+  const splitPaths = paths.map((p) => p.replaceAll("\\", "/").split("/"));
+  const minLen = Math.min(...splitPaths.map((p) => p.length));
+  let prefixLen = 0;
+  for (let i = 0; i < minLen; i++) {
+    const segment = splitPaths[0][i];
+    if (splitPaths.every((p) => p[i] === segment)) prefixLen++;
+    else break;
+  }
+  return splitPaths.map((p) => p.slice(prefixLen).join("/"));
+}
 
 export const initResizeObserver = (ref: HTMLElement, handler: any) => {
   const resizeObserver = new ResizeObserver(entries => {
@@ -94,3 +111,32 @@ export const initResizeObserver = (ref: HTMLElement, handler: any) => {
   resizeObserver.observe(ref);
   return resizeObserver;
 };
+
+export const Consts = {
+  CurrentApiKey: "api",
+  TemperatureKey: "temperature",
+  ThemeKey: "theme",
+  ServerUrlKey: "serverUrl",
+  DarkOrLightKey: "darkOrLight",
+  ContextFilesKey: "contextFiles"
+};
+
+export function setPersistentKey(key: string, value: string, sendToCpp = false) {
+  try {
+    localStorage.setItem(key, value);
+    if (sendToCpp && window.cppApi) {
+      // window.cppApi.setPersistentKey(key, value);
+    }
+  } catch (error) {
+    clog(`Unable to set persistent key ${key}`, error)
+  }
+}
+
+export function getPersistentKey(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    clog(`Unable to get persistent key ${key}`, error)
+  }
+  return null;
+}

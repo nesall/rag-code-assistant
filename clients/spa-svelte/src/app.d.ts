@@ -21,4 +21,6 @@ interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   _html: string;
+  _metaInfoArray?: string[];
+  _metaVisible?: boolean;
 }

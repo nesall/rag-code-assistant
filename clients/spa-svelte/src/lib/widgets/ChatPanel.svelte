@@ -1,12 +1,18 @@
 <script lang="ts">
   import InputArea from "./InputArea.svelte";
   import * as icons from "@lucide/svelte";
-  import { fade } from "svelte/transition";
+  import { fade, slide } from "svelte/transition";
   import { onMount, tick } from "svelte";
   import DOMPurify from "dompurify";
   import { renderMarkdown } from "../markdown";
-  import { apiUrl, clog, toaster } from "../utils";
+  import { apiUrl, clog, isGoodArray, stripCommonPrefix, toaster } from "../utils";
   import { messages, settings, temperature } from "../store";
+
+  export function resetUi() {
+    loading = false;
+    started = false;
+    metaInfoArray = [];
+  }
 
   $effect(() => {
     clog("ChatPanel $settings changed:", $state.snapshot($settings));
@@ -24,6 +30,7 @@
         role: "assistant",
         content: "Hello! How can I assist you today?",
         _html: await renderMarkdown("Hello! How can I assist you today?"),
+        _metaInfoArray: ["Searching for relevant content", "Processing attachment(s)", "Working on the response"],
       },
       {
         role: "user",
@@ -63,6 +70,10 @@
   let started = $state(false);
   // let messages = $state<ChatMessage[]>([]);
   let showScrollBtn = $state(false);
+
+  let metaInfoArray: string[] = $state([]);
+
+  const metaInfo = $derived(0 < metaInfoArray.length ? metaInfoArray[metaInfoArray.length - 1] : "");
 
   function checkMessagesEndVisibility() {
     if (!messagesEndDiv) return;
@@ -133,6 +144,8 @@
       .replace(/\n+$/, ""); // Remove trailing newlines
   }
 
+  const metaTagBegin = "[meta]";
+
   function parseFromSSE(chunk: string): string {
     let len = chunk.length;
     if (len === 0) return "";
@@ -151,13 +164,19 @@
         }
         const chunkJson = JSON.parse(jsonStr); // validate JSON
         if (chunkJson.sources && chunkJson.type == "context_sources") {
-          fullResponse += `\n\nSources:  \n`;
+          let sources: string[] = [];
           for (const a of chunkJson.sources as string[]) {
+            sources.push(a);
+          }
+          sources = stripCommonPrefix(sources);
+          fullResponse += `\n\nSources:  \n`;
+          for (const a of sources as string[]) {
             fullResponse += `*${a}*  \n`;
           }
         } else {
           const content = chunkJson.content || "";
           fullResponse += content;
+          if (content.startsWith(metaTagBegin)) return content;
         }
       }
     }
@@ -222,6 +241,12 @@
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = parseFromSSE(decoder.decode(value, { stream: true }));
+        if (!chunk && !appended) continue; // skip empty starting text
+        if (chunk.includes(metaTagBegin)) {
+          console.log(chunk);
+          metaInfoArray = [...metaInfoArray, chunk.substring(6)];
+          continue;
+        }
         if (appended) {
           let lm = $messages[$messages.length - 1];
           lm.content += chunk;
@@ -244,7 +269,9 @@
       let lm = $messages[$messages.length - 1];
       lm.content = processResponse(lm.content);
       lm._html = normalizeHeaders(await renderMarkdown(lm.content));
-      // sendFeedback(0, '', '', true);
+      lm._metaInfoArray = [...metaInfoArray];
+      $messages = $messages;
+      console.log("lm._metaInfoArray", lm._metaInfoArray);
     } catch (error) {
       clog("Error sending message:", error);
       $messages = [
@@ -256,12 +283,13 @@
         },
       ];
     } finally {
-      loading = false;
-      started = false;
+      resetUi();
       // if (window.PR && window.PR.prettyPrint) {
       //   window.PR.prettyPrint();
       // }
-      if (window.HLJS_CUSTOM && window.HLJS_CUSTOM.initHljs) window.HLJS_CUSTOM.initHljs();
+      setTimeout(() => {
+        if (window.HLJS_CUSTOM && window.HLJS_CUSTOM.initHljs) window.HLJS_CUSTOM.initHljs();
+      }, 250);
     }
   }
 
@@ -318,7 +346,7 @@
 <div class="chat-panel p-4 pb-0 w-full h-full flex flex-col space-y-8">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if $messages.length === 0}
-      <p class="text-center text-surface-500">No messages yet. Start the conversation!</p>
+      <p class="text text-center text-surface-500">No messages yet. Start the conversation!</p>
     {/if}
     {#each $messages as msg, i}
       {#if msg.role === "user"}
@@ -351,6 +379,29 @@
         </div>
       {:else}
         <div class="flex flex-col overflow-y-hidden box-border pb-4 space-y-1 message" data-role="assistant">
+          {#if isGoodArray(msg._metaInfoArray) && msg._metaInfoArray}
+            <div class="text-xs flex flex-col space-y-0 self-end text-right">
+              <button
+                type="button"
+                class="btn btn-sm text-surface-500 border-surface-500 flex text-right justify-end"
+                onclick={() => ($messages[i]._metaVisible = !$messages[i]._metaVisible)}
+              >
+                <span>Ready</span>
+                {#if msg._metaVisible}
+                  <icons.ChevronUp size={16} />
+                {:else}
+                  <icons.ChevronDown size={16} />
+                {/if}
+              </button>
+              {#if msg._metaVisible}
+                <div class="flex flex-col" transition:slide>
+                  {#each msg._metaInfoArray as info, i}
+                    <span>{msg._metaInfoArray[msg._metaInfoArray?.length - 1 - i]} ✓</span>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
           <div
             class="border2 border-surface-100-900 bg-surface-500/5 shadow2 rounded-xl whitespace-normal p-4 break-normal text-left message-content"
           >
@@ -405,7 +456,9 @@
       {/if}
     {/each}
     {#if loading && !started}
-      <div class="italic text-gray-500 text-sm">Thinking...</div>
+      <div class="italic text-right text-surface-500 text-sm">
+        {metaInfo || "Thinking..."}
+      </div>
     {/if}
     <div class="min-h-[4rem]"></div>
     <div bind:this={messagesEndDiv}></div>

@@ -2,9 +2,15 @@
   import * as icons from "@lucide/svelte";
   import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { apiUrl, clog, getLastLogs } from "../utils";
+  import { apiUrl, clog, Consts, getLastLogs, getPersistentKey, setPersistentKey } from "../utils";
   import Dropdown from "./Dropdown.svelte";
-  import { messages, settings, temperature } from "../store";
+  import { messages, settings, temperature, instances, curInstance } from "../store";
+
+  interface Props {
+    fetchInstances: () => void;
+    onClear: () => void;
+  }
+  let { fetchInstances, onClear = () => {} }: Props = $props();
 
   let openState = $state(false);
   let curTheme = $state("cerberus");
@@ -61,25 +67,20 @@
       : "",
   );
 
-  let instances: { value: string; label: string; desc: string }[] = $state([]);
-  let curInstance: string = $state("");
-
   let hasCppApi = $state(!!window.cppApi);
 
   onMount(() => {
     console.log("Toolbar onMount");
     try {
-      const savedTheme = localStorage.getItem("theme");
+      const savedTheme = getPersistentKey(Consts.ThemeKey);
       if (savedTheme && -1 != themeOptions.findIndex((a) => a.value == savedTheme)) {
         document.documentElement.setAttribute("data-theme", savedTheme);
         curTheme = savedTheme;
       }
-      const savedDarkLight = localStorage.getItem("darkOrLight");
+      const savedDarkLight = getPersistentKey(Consts.DarkOrLightKey);
       setDarkOrLight(savedDarkLight);
 
-      serverUrl = localStorage.getItem("serverUrl") || serverUrl;
-
-      fetchInstances();
+      serverUrl = getPersistentKey(Consts.ServerUrlKey) || serverUrl;
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -108,7 +109,7 @@
     const newDl = htmlEl.getAttribute("data-mode") === "dark" ? "light" : "dark";
     setDarkOrLight(newDl);
     try {
-      localStorage.setItem("darkOrLight", newDl);
+      setPersistentKey(Consts.DarkOrLightKey, newDl);
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -122,7 +123,7 @@
     document.documentElement.setAttribute("data-theme", theme);
     curTheme = theme;
     try {
-      localStorage.setItem("theme", theme);
+      setPersistentKey(Consts.ThemeKey, theme);
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -130,7 +131,7 @@
 
   function onModelChange(i: number, modelId: string) {
     try {
-      localStorage.setItem("api", modelId);
+      setPersistentKey(Consts.CurrentApiKey, modelId);
       $settings.completionApis = $settings.completionApis.map((api) => ({
         ...api,
         current: api.id === modelId,
@@ -145,7 +146,7 @@
   function onTempChange(e: Event) {
     try {
       const t = (e.target as HTMLInputElement).value;
-      localStorage.setItem("temperature", t);
+      setPersistentKey(Consts.TemperatureKey, t);
       $temperature = Number(t);
     } catch (e) {
       clog("Unable to access localStorage", e);
@@ -185,7 +186,7 @@
   function onServerUrlChange(e: Event) {
     try {
       serverUrl = (e.target as HTMLInputElement).value;
-      localStorage.setItem("serverUrl", serverUrl);
+      setPersistentKey(Consts.ServerUrlKey, serverUrl);
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -198,15 +199,16 @@
         url = "http://" + url;
       }
       const res = await window.cppApi.sendServerUrl(url);
-      clog("onTestConnection", res);
+      clog("onSaveConnection", res);
     } catch (error) {
       clog("Saving connection failed:", error);
       alert(`Save failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
-  function onClear() {
+  function onClearInternal() {
     messages.set([]);
+    onClear();
   }
 
   function onViewStats() {
@@ -219,23 +221,9 @@
     openStatsState = true;
   }
 
-  async function fetchInstances() {
-    const res = await fetch(apiUrl("/api/instances"));
-    const data = await res.json();
-    console.log("Instances", data);
-    instances = data.instances.map((a: { id: string; host: string; port: number; name: string }) => {
-      return {
-        value: a.id,
-        label: `${a.name}`,
-        desc: `${a.host}:${a.port}`,
-      };
-    });
-    curInstance = data.current_instance;
-  }
-
   async function onProjectChange(i: number, modelId: string) {
     if (window.cppApi) {
-      const res = await window.cppApi.sendServerUrl(instances[i].desc);
+      const res = await window.cppApi.sendServerUrl($instances[i].desc);
       console.log("onProjectChange", res);
     } else {
       alert("Switching backends is not implemented in web mode.");
@@ -248,8 +236,8 @@
   <span class="text-sm">Project</span>
   <span class="text-xs text-surface-700-900">
     <Dropdown
-      values={instances}
-      value={curInstance}
+      values={$instances}
+      value={$curInstance}
       onChange={onProjectChange}
       classNames="py-[2px] min-w-[10rem] preset-tonal"
       onAboutToShow={fetchInstances}
@@ -303,7 +291,7 @@
       type="button"
       class="btn btn-sm btn-icon flex hover:preset-tonal"
       aria-label="New Chat"
-      onclick={onClear}
+      onclick={onClearInternal}
       title="Clear chat"
     >
       <icons.Trash2 />

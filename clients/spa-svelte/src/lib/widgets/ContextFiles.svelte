@@ -3,7 +3,7 @@
   import Checkbox from "./Checkbox.svelte";
   import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { apiUrl, bytesToSize, clog, hash } from "../utils";
+  import { apiUrl, bytesToSize, clog, Consts, hash, stripCommonPrefix } from "../utils";
   import { fade, fly } from "svelte/transition";
 
   interface Props {
@@ -32,21 +32,8 @@
     fetchFiles();
   });
 
-  function stripCommonPrefix(paths: string[]) {
-    if (!paths.length) return [];
-    const splitPaths = paths.map((p) => p.replaceAll("\\", "/").split("/"));
-    const minLen = Math.min(...splitPaths.map((p) => p.length));
-    let prefixLen = 0;
-    for (let i = 0; i < minLen; i++) {
-      const segment = splitPaths[0][i];
-      if (splitPaths.every((p) => p[i] === segment)) prefixLen++;
-      else break;
-    }
-    return splitPaths.map((p) => p.slice(prefixLen).join("/"));
-  }
-
   function fetchFiles() {
-    const saved = JSON.parse(sessionStorage.getItem("contextFiles") || "[]");
+    const saved = JSON.parse(sessionStorage.getItem(Consts.ContextFilesKey) || "[]");
     fetch(apiUrl("/api/documents"))
       .then((response) => response.json())
       .then((data) => {

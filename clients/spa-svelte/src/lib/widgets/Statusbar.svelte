@@ -7,32 +7,45 @@
 
   interface Props {
     fetchSettings: () => void;
+    onConnectionStatusChange: (ok: boolean) => void;
   }
-  let { fetchSettings }: Props = $props();
+  let { fetchSettings, onConnectionStatusChange = (ok: boolean) => {} }: Props = $props();
 
   let connected = $state(false);
-  let timerId: any = $state(null);
+  let timerId: number | null = $state(null);
+
+  let recheckTimerId: number | null = null;
 
   onMount(() => {
     tryConnecting();
+
+    return () => {
+      if (timerId) clearInterval(timerId);
+      if (recheckTimerId) clearInterval(recheckTimerId);
+    };
   });
 
   function tryConnecting() {
-    let maxAttempts = 5;
+    if (timerId) {
+      clearInterval(timerId);
+    }
+    let attempts = 0;
     timerId = setInterval(() => {
+      attempts++;
       testConnection()
         .then((res) => {
           connected = res;
+          onConnectionStatusChange(connected);
           if (connected) {
-            clearInterval(timerId);
+            clearInterval(timerId!);
             timerId = null;
             fetchSettings();
             recheckConnectionStatus();
           }
         })
         .finally(() => {
-          if (0 == --maxAttempts) {
-            clearInterval(timerId);
+          if (5 <= attempts) {
+            clearInterval(timerId!);
             timerId = null;
           }
         });
@@ -40,15 +53,24 @@
   }
 
   function recheckConnectionStatus() {
-    let localTimer: number;
-    localTimer = setInterval(() => {
-      testConnection().then((ok) => {
-        if (!ok) {
-          clearInterval(localTimer);
+    if (recheckTimerId) {
+      clearInterval(recheckTimerId);
+    }
+    recheckTimerId = setInterval(() => {
+      testConnection()
+        .then((ok) => {
+          if (!ok) {
+            clearInterval(recheckTimerId!);
+            recheckTimerId = null;
+            tryConnecting();
+          }
+        })
+        .catch(() => {
+          clearInterval(recheckTimerId!);
+          recheckTimerId = null;
           tryConnecting();
-        }
-      });
-    }, 15000);
+        });
+    }, 30000);
   }
 
   function onModelChange(i: number, modelId: string) {

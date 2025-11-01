@@ -3,3 +3,5 @@ import { writable } from 'svelte/store';
 export const temperature = writable<number>(0.1);
 export const settings = writable<SettingsType>({ completionApis: [], currentApi: "" });
 export const messages = writable<ChatMessage[]>([]);
+export const instances = writable<{ value: string; label: string; desc: string }[]>([]);
+export const curInstance = writable<string>("");
