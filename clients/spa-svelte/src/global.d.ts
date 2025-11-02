@@ -3,6 +3,7 @@ declare interface Window {
   cppApi: {
     sendServerUrl: (url: string | undefined) => any;
     setPersistentKey: (key: string, value: string) => void;
+    getPersistentKey: (key: string) => string | null;
   };
   hljs: {
     highlightAll: () => any;

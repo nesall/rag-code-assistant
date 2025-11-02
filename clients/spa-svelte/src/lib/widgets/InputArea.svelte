@@ -13,7 +13,7 @@
 
   let input = $state("");
 
-  let nofInputRows = $state(2);
+  let nofInputRows = $state(1);
 
   let attachments: File[] = $state([]);
 
@@ -36,9 +36,21 @@
   function onTextareaChange(e: Event) {
     const el = e.target as HTMLTextAreaElement;
     let str = el.value || "";
-    const count = (str.match(/\r\n|\r|\n/g) || []).length;
 
-    nofInputRows = Math.max(2, Math.min(10, count + 1));
+    // Count explicit newlines
+    const newlineCount = (str.match(/\r\n|\r|\n/g) || []).length;
+
+    // Estimate how many characters fit per line (rough heuristic)
+    const avgCharWidth = 7; // px, tweak this
+    const charsPerLine = Math.floor(el.clientWidth / avgCharWidth);
+
+    // Estimate wrapped lines
+    const wrappedLines = Math.ceil(str.length / charsPerLine);
+
+    // Combine both
+    const totalLines = newlineCount + wrappedLines;
+
+    nofInputRows = Math.max(1, Math.min(10, totalLines));
   }
 
   function onContextFiles(files: string[]) {
@@ -54,7 +66,7 @@
   >
     <div class="flex flex-row w-full relative" role="presentation">
       <textarea
-        class="text-md outline-none border-none w-full resize-vertical lg:resize-none lg:max-h-48 lg:overflow-y-auto"
+        class="text-md outline-none border-none w-full resize-vertical resize-none lg:max-h-48 lg:overflow-y-auto pb-2"
         placeholder="Type a message (Shift+Enter to add a new line)"
         id="msg-input"
         dir="auto"
@@ -65,20 +77,49 @@
         onkeydown={onTextereaKeyDown}
         oninput={onTextareaChange}
       ></textarea>
-      <div class="flex flex-col items-center gap-4 ml-2 absolute right-0 top-0">
-        <button
-          type="submit"
-          class="btn btn-sm preset-filled-primary-500 w-8 h-8 px-0 rounded-full"
-          aria-label="Send message"
-          disabled={loading || !input.trim()}
-        >
-          <icons.ArrowUp />
-        </button>
-      </div>
     </div>
     <div class="absolute2 left2-1 bottom2-1 flex flex-col space-y-2">
       <FileAttachments {loading} bind:attachments />
-      <ContextFiles {loading} onChange={onContextFiles} />
+
+      <div class="flex space-x-1 w-full">
+        <ContextFiles {loading} onChange={onContextFiles} />
+        <div class="relative">
+          <button
+            type="submit"
+            class="btn btn-sm preset-filled w-7 h-7 px-0 m-0 rounded-lg absolute right-0 bottom-0"
+            aria-label="Send message"
+            disabled={loading || !input.trim()}
+            title="Send message (Enter)"
+          >
+            <icons.ArrowUp />
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </form>
+
+<style>
+  textarea::-webkit-scrollbar {
+    width: 6px; /* narrow scrollbar width */
+  }
+
+  textarea::-webkit-scrollbar-track {
+    background: #f1f1f1; /* track color */
+  }
+
+  textarea::-webkit-scrollbar-thumb {
+    background: #888; /* thumb color */
+    border-radius: 3px;
+  }
+
+  textarea::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  /* For Firefox */
+  textarea {
+    scrollbar-width: thin; /* "auto" | "thin" | "none" */
+    scrollbar-color: #888 #f1f1f1; /* thumb | track */
+  }
+</style>

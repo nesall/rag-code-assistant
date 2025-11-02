@@ -121,20 +121,24 @@ export const Consts = {
   ContextFilesKey: "contextFiles"
 };
 
-export function setPersistentKey(key: string, value: string, sendToCpp = false) {
+export function setPersistentKey(key: string, value: string, sendToCpp = true) {
   try {
     localStorage.setItem(key, value);
     if (sendToCpp && window.cppApi) {
-      // window.cppApi.setPersistentKey(key, value);
+      window.cppApi.setPersistentKey(key, value);
     }
   } catch (error) {
     clog(`Unable to set persistent key ${key}`, error)
   }
 }
 
-export function getPersistentKey(key: string): string | null {
+export function getPersistentKey(key: string, readFromCpp = true): string | null {
   try {
-    return localStorage.getItem(key);
+    let val = localStorage.getItem(key);
+    if (val == null && readFromCpp && window.cppApi) {
+      val = window.cppApi.getPersistentKey(key);
+    }
+    return val;
   } catch (error) {
     clog(`Unable to get persistent key ${key}`, error)
   }

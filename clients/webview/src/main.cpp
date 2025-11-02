@@ -329,6 +329,33 @@ int main() {
     w.set_title(std::format("Phenix Code Assistant - v1.0 [build date: {} {}]", __DATE__, __TIME__));
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
+    w.bind("setPersistentKey", [&prefs, &svr](const std::string &id, const std::string &data, void *)
+      {
+        LOG_MSG << "setPersistentKey: " << id << data;
+        try {
+          auto j = nlohmann::json::parse(data);
+          if (2 == j.size()) {
+            std::string key = j[0];
+            std::string val = j[1];
+            LOG_MSG << key << val;
+            if (!key.empty()) {
+              // TODO: save to prefs.
+            }
+          }
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
+        }
+      }, nullptr
+    );
+
+    w.bind("getPersistentKey", [&prefs, &svr](const std::string &key) -> std::string
+      {
+        LOG_MSG << "getPersistentKey: " << key;
+
+        return "";
+      }
+    );
+
     w.bind("sendUrlToCpp", [&prefs, &svr](const std::string &url) -> std::string
       {
         LOG_MSG << "New URL from client UI: " << url;
@@ -386,11 +413,14 @@ int main() {
     );
 
     w.init(R"(
-      window.cppApi = {
+      window.cppApi = {        
         sendServerUrl: function(url) {
           return sendUrlToCpp(url);
         }
       };
+      window.cppApi.setPersistentKey = setPersistentKey;
+      window.cppApi.getPersistentKey = getPersistentKey;
+
       window.addEventListener('error', function(e) {
         console.error('JS Error:', e.message, e.filename, e.lineno);
       });

@@ -217,6 +217,9 @@
       .then((data) => {
         console.log("STATS", data);
         statsData = data;
+      })
+      .catch(er => {
+        console.log(er);
       });
     openStatsState = true;
   }
