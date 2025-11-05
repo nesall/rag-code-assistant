@@ -9,6 +9,7 @@
 #include <sstream>
 #include <atomic>
 #include <fstream>
+#include <unordered_map>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -59,16 +60,36 @@ namespace {
     return "";
   }
 
-  struct Prefs {
+  struct AppConfig {
     int width = 700;
     int height = 900;
     int port = 8590;
     std::string host = "127.0.0.1";
+    std::unordered_map<std::string, std::string> uiPrefs;
     mutable std::mutex mutex_;
+
+    nlohmann::json toJson() const {
+      nlohmann::json j;
+      j["window"] = {
+          {"width", width},
+          {"height", height}
+      };
+      j["api"] = {
+          {"host", host},
+          {"port", port}
+      };
+      j["uiPrefs"] = nlohmann::json::array();
+      for (const auto &item : uiPrefs) {
+        j["uiPrefs"].push_back({
+          {"key", item.first},
+          {"value", item.second}
+        });
+      }
+      return j;
+    }
   };
 
-  void fetchOrCreatePrefsJson(Prefs &prefs) {
-    LOG_START;
+  std::string getConfigPath() {
     const std::string exeDir = getExecutableDir();
     static std::vector<std::string> paths = {
       exeDir + "/appconfig.json",
@@ -82,6 +103,29 @@ namespace {
         break;
       }
     }
+    if (!fs::exists(prefsPath)) {
+      prefsPath = paths[0];
+    }
+    return prefsPath;
+  }
+
+  void savePrefsToFile(const AppConfig &prefs) {
+    const auto prefsPath = getConfigPath();
+    nlohmann::json j = prefs.toJson();
+    std::ofstream out(prefsPath);
+    if (out.is_open()) {
+      out << j.dump(2) << std::endl;
+      out.close();
+      LOG_MSG << "Updated appconfig.json with new server URL";
+    } else {
+      LOG_MSG << "Failed to update" << prefsPath;
+      throw std::runtime_error("Failed to update appconfig.json");
+    }
+  }
+
+  void fetchOrCreatePrefsJson(AppConfig &prefs) {
+    LOG_START;
+    const auto prefsPath = getConfigPath();
     std::ifstream f(prefsPath);
     if (f.is_open()) {
       std::stringstream ss;
@@ -106,21 +150,22 @@ namespace {
             prefs.port = w["port"].get<int>();
           }
         }
+        if (j.contains("uiPrefs") && j["uiPrefs"].is_array()) {
+          for (const auto &item : j["uiPrefs"]) {
+            if (item.contains("key") && item.contains("value") &&
+                item["key"].is_string() && item["value"].is_string()) {
+              prefs.uiPrefs.insert({
+                item["key"].get<std::string>(),
+                item["value"].get<std::string>()
+                });
+            }
+          }
+        }
       } catch (const std::exception &e) {
         LOG_MSG << "Error parsing appconfig.json: " << e.what();
       }
     } else {
-      // Create appconfig.json at paths[0]
-      prefsPath = paths[0];
-      nlohmann::json j;
-      j["window"] = {
-        {"width", prefs.width},
-        {"height", prefs.height}
-      };
-      j["api"] = {
-        {"host", prefs.host},
-        {"port", prefs.port}
-      };
+      nlohmann::json j = prefs.toJson();
       try {
         std::ofstream out(prefsPath);
         if (out.is_open()) {
@@ -182,7 +227,7 @@ int main() {
     return 1;
   }
 
-  Prefs prefs;
+  AppConfig prefs;
   fetchOrCreatePrefsJson(prefs);
 
   LOG_MSG << "Loading Svelte app from: " << fs::absolute(assetsPath).string();
@@ -331,15 +376,19 @@ int main() {
 
     w.bind("setPersistentKey", [&prefs, &svr](const std::string &id, const std::string &data, void *)
       {
-        LOG_MSG << "setPersistentKey: " << id << data;
+        LOG_MSG << "setPersistentKey:" << id << data;
         try {
           auto j = nlohmann::json::parse(data);
-          if (2 == j.size()) {
+          if (j.is_array() && 2 == j.size()) {
             std::string key = j[0];
             std::string val = j[1];
             LOG_MSG << key << val;
             if (!key.empty()) {
-              // TODO: save to prefs.
+              std::lock_guard<std::mutex> lock(prefs.mutex_);
+              prefs.uiPrefs[key] = val;
+              savePrefsToFile(prefs);
+              LOG_MSG << "Saved persistent key: " << key;
+              return;
             }
           }
         } catch (const std::exception &ex) {
@@ -348,23 +397,38 @@ int main() {
       }, nullptr
     );
 
-    w.bind("getPersistentKey", [&prefs, &svr](const std::string &key) -> std::string
+    w.bind("getPersistentKey", [&prefs, &svr](const std::string &data) -> std::string
       {
-        LOG_MSG << "getPersistentKey: " << key;
-
-        return "";
+        LOG_MSG << "getPersistentKey:" << data;
+        try {
+          auto j = nlohmann::json::parse(data);
+          if (j.is_array() && 0 < j.size()) {
+            std::string key = j[0].get<std::string>();
+            std::lock_guard<std::mutex> lock(prefs.mutex_);
+            auto it = prefs.uiPrefs.find(key);
+            if (it != prefs.uiPrefs.end()) {
+              // Return a valid JSON string (quoted). Example: "\"dark\""
+              return nlohmann::json(it->second).dump();
+            }
+          }
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
+        }
+        // Return JSON null when not found
+        return "null";
       }
     );
 
-    w.bind("sendUrlToCpp", [&prefs, &svr](const std::string &url) -> std::string
+    w.bind("setServerUrl", [&prefs, &svr](const std::string &url) -> std::string
       {
-        LOG_MSG << "New URL from client UI: " << url;
-        std::lock_guard<std::mutex> lock(prefs.mutex_);
+        LOG_MSG << "setServerUrl:" << url;
         try {
           // Parse URL (simple parsing for this example)
           size_t hostStart = url.find("://") + 3;
           size_t portStart = url.find(":", hostStart);
           size_t pathStart = url.find("/", hostStart);
+
+          std::lock_guard<std::mutex> lock(prefs.mutex_);
 
           std::string newHost;
           int newPort = prefs.port;
@@ -382,27 +446,7 @@ int main() {
           prefs.host = newHost;
           prefs.port = newPort;
 
-          // Save to appconfig.json
-          const std::string prefsPath = getExecutableDir() + "/appconfig.json";
-          nlohmann::json j;
-          j["window"] = {
-              {"width", prefs.width},
-              {"height", prefs.height}
-          };
-          j["api"] = {
-              {"host", prefs.host},
-              {"port", prefs.port}
-          };
-
-          std::ofstream out(prefsPath);
-          if (out.is_open()) {
-            out << j.dump(2) << std::endl;
-            out.close();
-            LOG_MSG << "Updated appconfig.json with new server URL";
-          } else {
-            LOG_MSG << "Failed to update appconfig.json";
-            return "{\"status\": \"error\", \"message\": \"Failed to save preferences\"}";
-          }
+          savePrefsToFile(prefs);
 
           return "{\"status\": \"success\", \"message\": \"Server connection updated\"}";
         } catch (const std::exception &e) {
@@ -412,15 +456,27 @@ int main() {
       }
     );
 
-    w.init(R"(
-      window.cppApi = {        
-        sendServerUrl: function(url) {
-          return sendUrlToCpp(url);
+    w.bind("getServerUrl", [&prefs, &svr](const std::string &) -> std::string
+      {
+        std::lock_guard<std::mutex> lock(prefs.mutex_);
+        LOG_MSG << "getServerUrl" << prefs.host << prefs.port;
+        try {
+          std::string url = std::format("http://{}:{}", prefs.host, prefs.port);
+          return nlohmann::json(url).dump();
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
         }
-      };
-      window.cppApi.setPersistentKey = setPersistentKey;
-      window.cppApi.getPersistentKey = getPersistentKey;
+        return "null";
+      }
+    );
 
+    w.init(R"(
+      window.cppApi = {
+        setServerUrl,
+        getServerUrl,
+        setPersistentKey,
+        getPersistentKey,
+      };
       window.addEventListener('error', function(e) {
         console.error('JS Error:', e.message, e.filename, e.lineno);
       });

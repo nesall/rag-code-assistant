@@ -3,7 +3,7 @@
   import { clog, testConnection } from "../utils";
   import * as icons from "@lucide/svelte";
   import Dropdown from "./Dropdown.svelte";
-  import { settings } from "../store";
+  import { contextSizeRatio, settings } from "../store";
 
   interface Props {
     fetchSettings: () => void;
@@ -82,6 +82,12 @@
     $settings.currentApi = modelId;
   }
 
+  function onContextSizeChange(i: number, size: string) {
+    clog("Statusbar.onContextSizeChange", size);
+    const ratio = contextSizeMap[size] || 0.7;
+    $contextSizeRatio = ratio;
+  }
+
   const apiOptions = $derived(
     $settings.completionApis.map((a) => ({
       value: a.id,
@@ -95,6 +101,32 @@
       ? $settings.completionApis[$settings.completionApis.findIndex((a) => a.current)].id
       : "",
   );
+
+  const contextSizeMap: Record<string, number> = {
+    compact: 0.5,
+    balanced: 0.7,
+    detailed: 0.9,
+  };
+
+  const contextSizeOptions = $derived([
+    {
+      value: "compact",
+      label: "Compact",
+      hint: `Faster, lower cost (${contextSizeMap["compact"] * 100}% of allotted context)`,
+    },
+    {
+      value: "balanced",
+      label: "Balanced",
+      hint: `Good balance of context and cost (${contextSizeMap["balanced"] * 100}% of allotted context)`,
+    },
+    {
+      value: "detailed",
+      label: "Detailed",
+      hint: `More context, higher cost (${contextSizeMap["detailed"] * 100}% of allotted context)`,
+    },
+  ]);
+
+  let curContextSize = $state("balanced");
 
   $effect(() => {
     if ($settings) console.log("Statusbar $settings changed:", $state.snapshot($settings));
@@ -123,6 +155,12 @@
   {/if}
   <div class="flex-1"></div>
   <div class="flex items-center space-x-1">
+    <Dropdown
+      values={contextSizeOptions}
+      value={curContextSize}
+      onChange={onContextSizeChange}
+      classNames="py-[2px] min-w-[10rem] preset-tonal"
+    />
     <Dropdown
       values={apiOptions}
       value={curApi}

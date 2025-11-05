@@ -2,7 +2,7 @@
   import * as icons from "@lucide/svelte";
   import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { apiUrl, clog, Consts, getLastLogs, getPersistentKey, setPersistentKey } from "../utils";
+  import { apiUrl, clog, Consts, getLastLogs, getPersistentKey, setPersistentKey, stripCommonPrefix } from "../utils";
   import Dropdown from "./Dropdown.svelte";
   import { messages, settings, temperature, instances, curInstance } from "../store";
 
@@ -69,18 +69,24 @@
 
   let hasCppApi = $state(!!window.cppApi);
 
-  onMount(() => {
+  onMount(async () => {
     console.log("Toolbar onMount");
     try {
-      const savedTheme = getPersistentKey(Consts.ThemeKey);
+      const savedTheme = await getPersistentKey(Consts.ThemeKey);
       if (savedTheme && -1 != themeOptions.findIndex((a) => a.value == savedTheme)) {
         document.documentElement.setAttribute("data-theme", savedTheme);
         curTheme = savedTheme;
       }
-      const savedDarkLight = getPersistentKey(Consts.DarkOrLightKey);
+      const savedDarkLight = await getPersistentKey(Consts.DarkOrLightKey);
       setDarkOrLight(savedDarkLight);
 
-      serverUrl = getPersistentKey(Consts.ServerUrlKey) || serverUrl;
+      // serverUrl = await getPersistentKey(Consts.ServerUrlKey) || serverUrl;
+      if (window.cppApi) {
+        window.cppApi.getServerUrl().then((url) => {
+          if (url) serverUrl = url.replace("/api/health", "");
+          console.log("Fetched serverUrl from cppApi:", url, serverUrl);
+        });
+      }
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -184,21 +190,25 @@
   }
 
   function onServerUrlChange(e: Event) {
-    try {
-      serverUrl = (e.target as HTMLInputElement).value;
-      setPersistentKey(Consts.ServerUrlKey, serverUrl);
-    } catch (e) {
-      clog("Unable to access localStorage", e);
-    }
+    // try {
+    //   serverUrl = (e.target as HTMLInputElement).value;
+    //   setPersistentKey(Consts.ServerUrlKey, serverUrl);
+    // } catch (e) {
+    //   clog("Unable to access localStorage", e);
+    // }
   }
 
   async function onSaveConnection() {
     try {
+      if (!window.cppApi) {
+        alert("Changing server host is not supported in web mode.");
+        return;
+      }
       let url = `${serverUrl}/api/health`;
       if (!url.startsWith("http")) {
         url = "http://" + url;
       }
-      const res = await window.cppApi.sendServerUrl(url);
+      const res = await window.cppApi.setServerUrl(url);
       clog("onSaveConnection", res);
     } catch (error) {
       clog("Saving connection failed:", error);
@@ -217,8 +227,26 @@
       .then((data) => {
         console.log("STATS", data);
         statsData = data;
+        if (statsData) {
+          if (statsData.sources) {
+            let dirs = Object.entries((statsData.sources.by_directory = statsData.sources.by_directory || {}));
+            stripCommonPrefix(dirs.map((d) => d[0])).forEach((stripped: string, i: number) => {
+              dirs[i][0] = stripped;
+            });
+            statsData.sources.by_directory = Object.fromEntries(dirs);
+
+            let files = statsData.sources.top_files || [];
+            let paths = files.map((f) => f.path);
+            let strippedPaths = stripCommonPrefix(paths);
+            files.forEach((f, i) => {
+              f.path = strippedPaths[i];
+            });
+            statsData.sources.top_files = files;
+            console.log("Top Files:", statsData.sources.top_files);
+          }
+        }
       })
-      .catch(er => {
+      .catch((er) => {
         console.log(er);
       });
     openStatsState = true;
@@ -226,18 +254,18 @@
 
   async function onProjectChange(i: number, modelId: string) {
     if (window.cppApi) {
-      const res = await window.cppApi.sendServerUrl($instances[i].desc);
+      const res = await window.cppApi.setServerUrl($instances[i].desc);
       console.log("onProjectChange", res);
     } else {
-      alert("Switching backends is not implemented in web mode.");
+      alert("Switching backends is not supported in web mode.");
     }
   }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
-  <img src="/logo.png" alt="Logo" class="h-6 w-6" />
-  <span class="text-sm">Project</span>
-  <span class="text-xs text-surface-700-900">
+  <!-- <img src="/logo.png" alt="Logo" class="h-6 w-6" />
+  <span class="text-sm">Project</span> -->
+  <span class="text-xs text-surface-700-900" title="Select Project/Instance">
     <Dropdown
       values={$instances}
       value={$curInstance}
@@ -341,7 +369,7 @@
               <div class="flex flex-col space-x-2 items-left w-full">
                 <span class="whitespace-nowrap">Server:</span>
                 <div class="flex items-center space-x-2">
-                  <input type="url" class="input" value={serverUrl} onchange={onServerUrlChange} />
+                  <input type="url" class="input" bind:value={serverUrl} onchange={onServerUrlChange} />
                   <button type="button" class="btn preset-tonal flex items-center" onclick={onSaveConnection}>
                     <icons.CircleCheckBig size={16} />
                     Save
@@ -395,93 +423,91 @@
         <Dialog.Title class="text-lg font-bold">Stats</Dialog.Title>
         <hr class="hr" />
         <Dialog.Description>
-          <div class="whitespace-pre-wrap font-mono2 text-xs max-h-[60vh] overflow-y-auto">
-            <div class="flex flex-col space-y-2">
-              <div class="flex items-center gap-4">
-                <span class="flex-1 text-right">Total chunks</span>
-                <span class="flex-1">{statsData?.total_chunks}</span>
-              </div>
+          <div class="whitespace-pre-wrap font-mono0 text-xs max-h-[60vh] overflow-y-auto">
+            <div class="flex flex-col">
+              <!-- <span class="font-semibold uppercase">Sources:</span> -->
 
-              <div class="flex items-center gap-4">
-                <span class="flex-1 text-right">Vector count</span>
-                <span class="flex-1">{statsData?.vector_count}</span>
-              </div>
+              <div class="ml-4 flex flex-col space-y-1 mt-2">
+                <div class="flex items-center gap-4">
+                  <span class="flex-1 text-right">Total chunks</span>
+                  <span class="flex-1">{statsData?.total_chunks}</span>
+                </div>
 
-              <div class="flex flex-col">
-                <span class="font-semibold uppercase">Sources:</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex-1 text-right">Vector count</span>
+                  <span class="flex-1">{statsData?.vector_count}</span>
+                </div>
 
-                <div class="ml-4">
-                  <div class="flex items-center gap-4">
-                    <span class="flex-1 text-right">Total files</span>
-                    <span class="flex-1">{statsData?.sources.total_files}</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex-1 text-right">Total files</span>
+                  <span class="flex-1">{statsData?.sources.total_files}</span>
+                </div>
+
+                <div class="flex items-center gap-4">
+                  <span class="flex-1 text-right">Total lines</span>
+                  <span class="flex-1">{statsData?.sources.total_lines}</span>
+                </div>
+
+                <div class="flex items-center gap-4">
+                  <span class="flex-1 text-right">Total size (bytes)</span>
+                  <span class="flex-1">{statsData?.sources.total_size_bytes}</span>
+                </div>
+
+                <div class="flex flex-col whitespace-normal">
+                  <span class="font-semibold mt-2">By Directory:</span>
+                  <div class="ml-4">
+                    {#each Object.entries(statsData?.sources.by_directory || {}) as [dir, count]}
+                      <div class="flex items-center gap-4">
+                        <span class="flex-1 text-right">{dir}</span>
+                        <span class="flex-1">{count}</span>
+                      </div>
+                    {/each}
                   </div>
+                </div>
 
-                  <div class="flex items-center gap-4">
-                    <span class="flex-1 text-right">Total lines</span>
-                    <span class="flex-1">{statsData?.sources.total_lines}</span>
+                <div class="flex flex-col mt-2">
+                  <span class="font-semibold">By Language:</span>
+                  <div class="ml-4">
+                    {#each Object.entries(statsData?.sources.by_language || {}) as [lang, count]}
+                      <div class="flex items-center gap-4">
+                        <span class="flex-1 text-right">{lang}</span>
+                        <span class="flex-1">{count}</span>
+                      </div>
+                    {/each}
                   </div>
+                </div>
 
-                  <div class="flex items-center gap-4">
-                    <span class="flex-1 text-right">Total size (bytes)</span>
-                    <span class="flex-1">{statsData?.sources.total_size_bytes}</span>
-                  </div>
-
-                  <div class="flex flex-col whitespace-normal">
-                    <span class="font-semibold mt-2">By Directory:</span>
-                    <div class="ml-4">
-                      {#each Object.entries(statsData?.sources.by_directory || {}) as [dir, count]}
+                <div class="flex flex-col mt-2 whitespace-normal">
+                  <span class="font-semibold">Top Files:</span>
+                  <div class="ml-4">
+                    {#each statsData?.sources.top_files || [] as file}
+                      <div class="flex flex-col border-b border-surface-200-800 py-1">
                         <div class="flex items-center gap-4">
-                          <span class="flex-1 text-right">{dir}</span>
-                          <span class="flex-1">{count}</span>
+                          <span class="flex-1 text-right">Path</span>
+                          <span class="flex-1 wrap-anywhere">{file.path}</span>
                         </div>
-                      {/each}
-                    </div>
-                  </div>
-
-                  <div class="flex flex-col mt-2">
-                    <span class="font-semibold">By Language:</span>
-                    <div class="ml-4">
-                      {#each Object.entries(statsData?.sources.by_language || {}) as [lang, count]}
                         <div class="flex items-center gap-4">
-                          <span class="flex-1 text-right">{lang}</span>
-                          <span class="flex-1">{count}</span>
+                          <span class="flex-1 text-right">Language</span>
+                          <span class="flex-1">{file.language}</span>
                         </div>
-                      {/each}
-                    </div>
-                  </div>
-
-                  <div class="flex flex-col mt-2 whitespace-normal">
-                    <span class="font-semibold">Top Files:</span>
-                    <div class="ml-4">
-                      {#each statsData?.sources.top_files || [] as file}
-                        <div class="flex flex-col border-b border-surface-200-800 py-1">
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Path</span>
-                            <span class="flex-1">{file.path}</span>
-                          </div>
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Language</span>
-                            <span class="flex-1">{file.language}</span>
-                          </div>
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Chunks</span>
-                            <span class="flex-1">{file.chunks}</span>
-                          </div>
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Lines</span>
-                            <span class="flex-1">{file.lines}</span>
-                          </div>
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Size (bytes)</span>
-                            <span class="flex-1">{file.size_bytes}</span>
-                          </div>
-                          <div class="flex items-center gap-4">
-                            <span class="flex-1 text-right">Last Modified</span>
-                            <span class="flex-1">{new Date(file.last_modified * 1000).toLocaleString()}</span>
-                          </div>
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">Chunks</span>
+                          <span class="flex-1">{file.chunks}</span>
                         </div>
-                      {/each}
-                    </div>
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">Lines</span>
+                          <span class="flex-1">{file.lines}</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">Size (bytes)</span>
+                          <span class="flex-1">{file.size_bytes}</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                          <span class="flex-1 text-right">Last Modified</span>
+                          <span class="flex-1">{new Date(file.last_modified * 1000).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    {/each}
                   </div>
                 </div>
               </div>

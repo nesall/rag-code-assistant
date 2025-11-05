@@ -6,7 +6,7 @@
   import DOMPurify from "dompurify";
   import { renderMarkdown } from "../markdown";
   import { apiUrl, clog, isGoodArray, stripCommonPrefix, toaster } from "../utils";
-  import { messages, settings, temperature } from "../store";
+  import { contextSizeRatio, messages, settings, temperature } from "../store";
 
   export function resetUi() {
     loading = false;
@@ -229,6 +229,7 @@
           sourceids,
           targetapi: $settings.currentApi,
           temperature: $temperature,
+          ctxratio: $contextSizeRatio,
         }),
       });
       if (!response.ok) {

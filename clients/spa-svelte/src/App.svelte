@@ -18,11 +18,11 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return res.json();
       })
-      .then((data) => {
+      .then(async (data) => {
         const ss = data as SettingsType;
         let apis = ss.completionApis;
         console.log("onMount /api/settings:", ss);
-        const currentApi = getPersistentKey(Consts.CurrentApiKey) || ss.currentApi;
+        const currentApi = await getPersistentKey(Consts.CurrentApiKey) || ss.currentApi;
         apis = apis.map((api) => ({
           ...api,
           current: api.id === currentApi,
@@ -30,7 +30,7 @@
         console.log("Toolbar.onMount apis", $state.snapshot(apis));
         $settings.completionApis = apis;
         $settings.currentApi = currentApi;
-        const savedTemp = getPersistentKey(Consts.TemperatureKey);
+        const savedTemp = await getPersistentKey(Consts.TemperatureKey);
         $temperature = Number(savedTemp) || $temperature;
       })
       .catch((err) => {

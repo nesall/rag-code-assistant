@@ -2,6 +2,7 @@
   import * as icons from "@lucide/svelte";
   import FileAttachments from "./FileAttachments.svelte";
   import ContextFiles from "./ContextFiles.svelte";
+  import type Clock_8 from "@lucide/svelte/icons/clock-8";
 
   interface Props {
     onSendMessage: (message: string, attachments: File[]) => void;
@@ -41,8 +42,21 @@
     const newlineCount = (str.match(/\r\n|\r|\n/g) || []).length;
 
     // Estimate how many characters fit per line (rough heuristic)
-    const avgCharWidth = 7; // px, tweak this
-    const charsPerLine = Math.floor(el.clientWidth / avgCharWidth);
+
+    const style = getComputedStyle(el);
+
+    const ctx = document.createElement("canvas").getContext("2d")!;
+    ctx.font = style.font || "16px Arial";
+    const sample = "Wow! The quick brown fox jumps over the lazy dog. _Yay 1234567890";
+    const avgCharWidth = ctx.measureText(sample).width / sample.length;
+
+    console.log("Font:", ctx.font, "; avgCharWidth:", avgCharWidth);
+
+    // Calculate number of characters that fit in the textarea width
+
+    const usableWidth = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+
+    const charsPerLine = Math.floor(usableWidth / avgCharWidth);
 
     // Estimate wrapped lines
     const wrappedLines = Math.ceil(str.length / charsPerLine);

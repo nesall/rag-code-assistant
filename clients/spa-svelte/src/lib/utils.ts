@@ -116,27 +116,34 @@ export const Consts = {
   CurrentApiKey: "api",
   TemperatureKey: "temperature",
   ThemeKey: "theme",
-  ServerUrlKey: "serverUrl",
+  // ServerUrlKey: "serverUrl",
   DarkOrLightKey: "darkOrLight",
   ContextFilesKey: "contextFiles"
 };
 
-export function setPersistentKey(key: string, value: string, sendToCpp = true) {
+export async function setPersistentKey(key: string, value: string, sendToCpp = true) {
   try {
+    clog(`setPersistentKey ${key}`, value, sendToCpp, window.cppApi);
     localStorage.setItem(key, value);
     if (sendToCpp && window.cppApi) {
-      window.cppApi.setPersistentKey(key, value);
+      await window.cppApi.setPersistentKey(key, value);
+      clog(`Saved persistent key ${key} to C++`, value);
     }
   } catch (error) {
     clog(`Unable to set persistent key ${key}`, error)
   }
 }
 
-export function getPersistentKey(key: string, readFromCpp = true): string | null {
+export async function getPersistentKey(key: string, readFromCpp = true): Promise<string | null> {
   try {
+    clog(`getPersistentKey ${key}`, readFromCpp, window.cppApi);
     let val = localStorage.getItem(key);
-    if (val == null && readFromCpp && window.cppApi) {
-      val = window.cppApi.getPersistentKey(key);
+    if (readFromCpp && window.cppApi) {
+      val = await window.cppApi.getPersistentKey(key);
+      clog(`Loaded persistent key ${key} from C++`, val);
+      if (val != null) {
+        localStorage.setItem(key, val);
+      }
     }
     return val;
   } catch (error) {
