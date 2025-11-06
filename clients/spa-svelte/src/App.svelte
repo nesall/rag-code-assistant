@@ -22,7 +22,7 @@
         const ss = data as SettingsType;
         let apis = ss.completionApis;
         console.log("onMount /api/settings:", ss);
-        const currentApi = await getPersistentKey(Consts.CurrentApiKey) || ss.currentApi;
+        const currentApi = (await getPersistentKey(Consts.CurrentApiKey)) || ss.currentApi;
         apis = apis.map((api) => ({
           ...api,
           current: api.id === currentApi,
@@ -60,7 +60,7 @@
     chatPanel.resetUi();
   }
 
-  let chatPanel:ChatPanel;
+  let chatPanel: ChatPanel;
 </script>
 
 <main
@@ -81,7 +81,7 @@
 
 <Toast.Group {toaster}>
   {#snippet children(toast)}
-    <Toast {toast}>
+    <Toast {toast} class="w-auto max-w-md">
       <Toast.Message>
         <Toast.Title>{toast.title}</Toast.Title>
         <Toast.Description>{toast.description}</Toast.Description>
