@@ -91,6 +91,8 @@ export function stripCommonPrefix(paths: string[]) {
     if (splitPaths.every((p) => p[i] === segment)) prefixLen++;
     else break;
   }
+  if (prefixLen === 0) return paths;
+  if (prefixLen === minLen) prefixLen--; // leave at least one segment
   return splitPaths.map((p) => p.slice(prefixLen).join("/"));
 }
 

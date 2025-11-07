@@ -5,11 +5,20 @@
   import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
   import { fade } from "svelte/transition";
 
+  interface ValueObject {
+    value: string | boolean;
+    label: string;
+    desc?: string;
+    hint?: string;
+  }
+
   interface Props {
     value?: string;
-    values?: Array<string | { value: string; label: string; desc?: string; hint?: string }>;
+    values?: Array<string | ValueObject>;
     id?: string;
     classNames?: string;
+    noButtonText?: boolean;
+    disabled?: boolean;
     onChange?: (i: number, value: string) => void;
     onAboutToShow?: () => void;
   }
@@ -19,26 +28,39 @@
     values = [],
     id = nextRandomId(4),
     classNames = "preset-outlined-surface-500",
+    noButtonText = false,
+    disabled = false,
     onChange = (i: number, value: string) => {},
     onAboutToShow = async () => {},
   }: Props = $props();
 
-  function valueStr(v: string | { value: string; label: string }) {
-    if (typeof v === "string") return v;
+  function isBoolean(v: string | ValueObject) {
+    if (typeof v === "string") return false;
+    return typeof v.value === "boolean";
+  }
+
+  function valueBool(v: string | ValueObject) {
+    if (typeof v === "string") return !!v;
+    if (typeof v.value === "string") return !!v.value;
     return v.value;
   }
 
-  function labelStr(v: string | { value: string; label: string }) {
+  function valueStr(v: string | ValueObject) {
+    if (typeof v === "string") return v;
+    return String(v.value);
+  }
+
+  function labelStr(v: string | ValueObject) {
     if (typeof v === "string") return v;
     return v.label;
   }
 
-  function descStr(v: string | { value: string; label: string; desc?: string }) {
+  function descStr(v: string | ValueObject) {
     if (typeof v === "string") return "";
     return v.desc;
   }
 
-  function hintStr(v: string | { value: string; label: string; hint?: string }) {
+  function hintStr(v: string | ValueObject) {
     if (typeof v === "string") return "";
     return v.hint;
   }
@@ -114,11 +136,20 @@
   let elemAnchor: HTMLElement | undefined = $state();
   let anchorWidth = $state(10);
 
+  const dropdownWidth = $derived(!elemAnchor || noButtonText ? "auto" : `${elemAnchor.offsetWidth}px`);
+
   function onItemClick(i: number, v: string) {
     value = v;
     currentHint = hintStr(values[i]);
     onChange(i, v);
     setTimeout(() => (show = false), 100);
+  }
+
+  function onItemToggle(i: number, ev: Event) {
+    const elem = ev.target as HTMLInputElement;
+    let checked = false;
+    if (elem) checked = elem.checked;
+    onChange(i, String(checked));
   }
 
   async function onClick() {
@@ -159,19 +190,22 @@
   <button
     type="button"
     class="combobox-btn w-full flex items-center rounded px-2 py-1 {classNames}"
+    {disabled}
     onclick={onClick}
     title={currentHint}
   >
-    <div class="flex-1 text-left items-center flex space-x-4">
-      <span class="text-left">
-        {currentLabel}
-      </span>
-      {#if currentDesc}
-        <span class="text-surface-500">
-          {currentDesc}
+    {#if !noButtonText}
+      <div class="flex-1 text-left items-center flex space-x-4">
+        <span class="text-left">
+          {currentLabel}
         </span>
-      {/if}
-    </div>
+        {#if currentDesc}
+          <span class="text-surface-500">
+            {currentDesc}
+          </span>
+        {/if}
+      </div>
+    {/if}
     {#if show}
       <icons.ChevronUp size={16} />
     {:else}
@@ -181,30 +215,53 @@
   {#if show}
     <div
       id="{id}-dropdown-list"
-      style="position: fixed; width: {elemAnchor.offsetWidth}px; z-index: 1000;"
+      style="position: fixed; width: {dropdownWidth}; z-index: 1000;"
       class="dropdown-list rounded shadow flex flex-col max-h-48 overflow-y-auto absolute2"
       role="listbox"
       bind:this={elemFloat}
       transition:fade={{ duration: 100 }}
     >
-      {#each values as item, i (valueStr(item))}
-        <button
-          data-value={valueStr(item)}
-          class="bg-surface-50-950 hover:bg-surface-100-900 text-left px-3 py-1 w-full
+      {#each values as item, i (valueStr(item) + labelStr(item))}
+        {#if isBoolean(item)}
+          <div
+            class="bg-surface-50-950 hover:bg-surface-100-900 text-left px-3 py-1 w-full
+            flex items-center gap-2"
+            title={hintStr(item)}
+          >
+            <input
+              type="checkbox"
+              id={`${id}-checkbox-item${i}`}
+              data-value={valueStr(item)}
+              class="bg-surface-50-950 hover:bg-surface-100-900 text-left
+              flex items-center justify-between"
+              role="option"
+              aria-selected={valueBool(item)}
+              checked={valueBool(item) === true}
+              onchange={(ev) => onItemToggle(i, ev)}
+            />
+            <label for={`${id}-checkbox-item${i}`} class="flex-1">
+              {labelStr(item)}
+            </label>
+          </div>
+        {:else}
+          <button
+            data-value={valueStr(item)}
+            class="bg-surface-50-950 hover:bg-surface-100-900 text-left px-3 py-1 w-full
                 flex items-center justify-between
                 {valueStr(item) === value ? 'font-bold' : ''}"
-          role="option"
-          aria-selected={valueStr(item) === value}
-          onclick={() => onItemClick(i, valueStr(item))}
-          title={hintStr(item)}
-        >
-          {labelStr(item)}
-          {#if descStr(item)}
-            <span class="text-surface-500 text-right">
-              {descStr(item)}
-            </span>
-          {/if}
-        </button>
+            role="option"
+            aria-selected={valueStr(item) === value}
+            onclick={() => onItemClick(i, valueStr(item))}
+            title={hintStr(item)}
+          >
+            {labelStr(item)}
+            {#if descStr(item)}
+              <span class="text-surface-500 text-right">
+                {descStr(item)}
+              </span>
+            {/if}
+          </button>
+        {/if}
       {/each}
     </div>
   {/if}

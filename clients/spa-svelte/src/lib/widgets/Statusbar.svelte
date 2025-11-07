@@ -159,7 +159,7 @@
       values={contextSizeOptions}
       value={curContextSize}
       onChange={onContextSizeChange}
-      classNames="py-[2px] min-w-[10rem] preset-tonal"
+      classNames="py-[2px] min-w-[7rem] preset-tonal"
     />
     <Dropdown
       values={apiOptions}

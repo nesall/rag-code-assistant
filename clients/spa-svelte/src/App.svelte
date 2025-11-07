@@ -70,7 +70,7 @@
 >
   <div class="p-4 m-0 flex flex-col w-full h-full">
     <Toolbar {fetchInstances} {onClear} />
-    <div class="chatpanel-wrapper flex-grow w-full h-0 overflow-y-auto">
+    <div class="chatpanel-wrapper flex-grow w-full h-0 mb-[-0.5rem]">
       <ChatPanel bind:this={chatPanel} />
     </div>
   </div>

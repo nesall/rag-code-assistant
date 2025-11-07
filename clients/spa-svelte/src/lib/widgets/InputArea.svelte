@@ -2,26 +2,26 @@
   import * as icons from "@lucide/svelte";
   import FileAttachments from "./FileAttachments.svelte";
   import ContextFiles from "./ContextFiles.svelte";
-  import type Clock_8 from "@lucide/svelte/icons/clock-8";
 
   interface Props {
-    onSendMessage: (message: string, attachments: File[]) => void;
+    onSendMessage: (message: string) => void;
     sourceids: string[];
+    attachments: File[];
     loading: boolean;
   }
 
-  let { loading = false, sourceids = $bindable([]), onSendMessage }: Props = $props();
+  let { loading = false, sourceids = $bindable([]), attachments = $bindable([]), onSendMessage }: Props = $props();
 
   let input = $state("");
 
   let nofInputRows = $state(1);
 
-  let attachments: File[] = $state([]);
+  // let attachments: File[] = $state([]);
 
   function onSubmit(e: Event) {
     e.preventDefault();
     if (onSendMessage && (input.trim() || 0 < attachments.length || 0 < sourceids.length)) {
-      onSendMessage(input.trim(), attachments);
+      onSendMessage(input.trim());
       input = "";
       attachments = [];
     }

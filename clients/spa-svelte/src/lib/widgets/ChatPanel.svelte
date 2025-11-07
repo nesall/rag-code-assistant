@@ -65,6 +65,11 @@
     ];
   }
 
+  interface Attachment {
+    filename: string;
+    content: string;
+  }
+
   let loading = $state(false);
   let messagesEndDiv: HTMLDivElement;
   let started = $state(false);
@@ -72,8 +77,15 @@
   let showScrollBtn = $state(false);
 
   let metaInfoArray: string[] = $state([]);
+  let sourceids: string[] = $state([]);
+  let attachments: File[] = $state([]);
+  let attachmentsLoaded: Attachment[] = $state([]);
+
+  let attachedFilesOnly = $state(false);
 
   const metaInfo = $derived(0 < metaInfoArray.length ? metaInfoArray[metaInfoArray.length - 1] : "");
+
+  const hasAttachedFiles = $derived(isGoodArray(sourceids) || isGoodArray(attachments));
 
   function checkMessagesEndVisibility() {
     if (!messagesEndDiv) return;
@@ -83,9 +95,9 @@
   }
 
   onMount(() => {
-    // insertTestMessages();
+    //insertTestMessages();
 
-    const wrapper = document.querySelector(".chatpanel-wrapper") as HTMLDivElement | null | undefined;
+    const wrapper = document.querySelector(".chat-panel") as HTMLDivElement | null | undefined;
     if (wrapper) wrapper.addEventListener("scroll", checkMessagesEndVisibility);
     window.addEventListener("resize", checkMessagesEndVisibility);
     tick().then(checkMessagesEndVisibility);
@@ -99,21 +111,33 @@
     if (messages) checkMessagesEndVisibility();
   });
 
-  let sourceids: string[] = $state([]);
-
-  function onSendMessage(message: string, attachments: File[]) {
+  function onSendMessage(message: string) {
     if (!message.trim() && attachments.length === 0) return;
     message = message.trim();
     if (attachments.length === 0) {
       sendMessage(message, [], sourceids, true);
     } else {
-      let atts: { filename: string; content: string }[] = [];
+      let loaded = attachmentsLoaded.length === attachments.length;
+      if (loaded) {
+        for (const file of attachments) {
+          const match = attachmentsLoaded.find((att) => att.filename === file.name);
+          if (!match) {
+            loaded = false;
+            break;
+          }
+        }
+      }
+      if (loaded) {
+        clog("All attachments already loaded.");
+        sendMessage(message, attachmentsLoaded, sourceids, true);
+        return;
+      }
+      let atts: Attachment[] = [];
       for (const file of attachments) {
         const reader = new FileReader();
         reader.onload = () => {
           const content = reader.result;
           if (typeof content === "string") {
-            // atts += `\n\n[Attachment: ${file.name}]\n${content}\n[/Attachment]`;
             atts.push({ filename: file.name, content });
           }
         };
@@ -183,12 +207,7 @@
     return fullResponse;
   }
 
-  async function sendMessage(
-    input: string,
-    attachments: { filename: string; content: string }[],
-    sourceids: string[],
-    appendQ = true,
-  ) {
+  async function sendMessage(input: string, attachments: Attachment[], sourceids: string[], appendQ = true) {
     if (loading) return;
     loading = true;
     started = false;
@@ -230,6 +249,7 @@
           targetapi: $settings.currentApi,
           temperature: $temperature,
           ctxratio: $contextSizeRatio,
+          attachedonly: attachedFilesOnly,
         }),
       });
       if (!response.ok) {
@@ -344,7 +364,7 @@
   }
 </script>
 
-<div class="chat-panel p-4 pb-0 w-full h-full flex flex-col space-y-8">
+<div class="chat-panel p-3 w-full h-full flex flex-col space-y-8  overflow-y-auto">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if $messages.length === 0}
       <p class="text text-center text-surface-500">No messages yet. Start the conversation!</p>
@@ -479,6 +499,24 @@
         </button>
       </div>
     {/if}
-    <InputArea {onSendMessage} bind:sourceids {loading} />
+    <InputArea {onSendMessage} bind:sourceids bind:attachments {loading} />
+
+    <div
+      class="flex items-center absolute left-4 bottom-0 z-50 bg-surface-50-950 px-2 rounded gap-1 translate-y-1/3"
+      title="If on, only files attached to the message will be used as context"
+    >
+      <input
+        type="checkbox"
+        id="checkbox-attached-files-only"
+        checked={attachedFilesOnly && hasAttachedFiles}
+        disabled={!hasAttachedFiles}
+        onchange={(ev) => {
+          attachedFilesOnly = (ev.target as HTMLInputElement)?.checked;
+        }}
+      />
+      <label class="text-xs {hasAttachedFiles ? '' : 'text-surface-500'}" for="checkbox-attached-files-only">
+        Use attached files only
+      </label>
+    </div>
   </div>
 </div>
