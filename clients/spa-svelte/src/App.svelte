@@ -54,6 +54,9 @@
 
   function onConnectionStatusChange(ok: boolean) {
     onClear();
+    if (ok) {
+      fetchInstances();
+    }
   }
 
   function onClear() {
