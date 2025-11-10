@@ -194,6 +194,7 @@
           }
           sources = stripCommonPrefix(sources);
           fullResponse += `\n\nSources:  \n`;
+          console.log("Sources: ", sources);
           for (const a of sources as string[]) {
             fullResponse += `*${a}*  \n`;
           }

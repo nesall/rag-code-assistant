@@ -6,10 +6,11 @@ declare interface Window {
     setPersistentKey: (key: string, value: string) => Promise<void>;
     getPersistentKey: (key: string) => Promise<string | null>;
   };
-  hljs: {
-    highlightAll: () => any;
-  }
+  // hljs: {
+  //   highlightAll: () => any;
+  // }
   HLJS_CUSTOM: {
     initHljs: () => any;
+    hlAuto: (s: string, lang?: string) => string;
   }
 }
