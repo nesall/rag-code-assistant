@@ -6,15 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 FetchContent_Declare(
-    webview
-    GIT_REPOSITORY https://github.com/webview/webview
-    GIT_TAG 0.12.0
+  webview
+  GIT_REPOSITORY https://github.com/webview/webview
+  GIT_TAG 0.12.0
 )
 
 FetchContent_Declare(
-    httplib
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG v0.23.1
+  httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG v0.23.1
 )
 
 FetchContent_Declare(
@@ -24,16 +24,26 @@ FetchContent_Declare(
 )
 
 FetchContent_Declare(
+  win_dark
+  GIT_REPOSITORY https://github.com/nesall/WinDarkTitlebarImpl.git
+  GIT_TAG main
+)
+
+FetchContent_Declare(
   nlohmann_json
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.11.2
 )
 
-FetchContent_MakeAvailable(webview httplib utils_log nlohmann_json)
+FetchContent_MakeAvailable(webview httplib utils_log win_dark nlohmann_json)
 
 # logging
 add_library(utils_log INTERFACE)
 target_include_directories(utils_log INTERFACE ${utils_log_SOURCE_DIR})
+
+# win-dark-titlebar
+add_library(win_dark INTERFACE)
+target_include_directories(win_dark INTERFACE ${win_dark_SOURCE_DIR})
 
 # Path to sibling spa-svelte project
 set(SPA_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../spa-svelte)
@@ -49,7 +59,7 @@ if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
     )
 endif()
 
-target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log win_dark nlohmann_json::nlohmann_json)
 
 # Platform-specific libraries
 if(WIN32)

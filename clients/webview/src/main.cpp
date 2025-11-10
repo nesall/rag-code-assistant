@@ -4,6 +4,7 @@
 #include <utils_log/logger.hpp>
 #include <filesystem>
 #include <string>
+#include <cassert>
 #include <thread>
 #include <format>
 #include <sstream>
@@ -12,7 +13,9 @@
 #include <unordered_map>
 
 #ifdef _WIN32
+#define WIN32_LEAM_AND_MEAN
 #include <windows.h>
+#include "WinDarkTitlebarImpl.h"
 #else
 #include <limits.h>
 #include <unistd.h>
@@ -369,12 +372,23 @@ int main() {
   try {
     LOG_MSG << "Using window size, w" << prefs.width << ", h" << prefs.height;
 
+
     webview::webview w(true, nullptr);
     setAppIcon(w, "logo");
     w.set_title(std::format("Phenix Code Assistant - v1.0 [build date: {} {}]", __DATE__, __TIME__));
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
 
-    w.bind("setPersistentKey", [&prefs, &svr](const std::string &id, const std::string &data, void *)
+#ifdef _WIN32
+    HWND hWnd = static_cast<HWND>(w.window().value());
+    WinDarkTitlebarImpl winDarkImpl;
+    winDarkImpl.init();
+    auto changeTheme = [&winDarkImpl, hWnd](bool dark) {
+      winDarkImpl.setTitleBarTheme(hWnd, dark);
+      };
+    changeTheme(prefs.uiPrefs["darkOrLight"] == "dark");
+#endif
+
+    w.bind("setPersistentKey", [&prefs, &svr, changeTheme](const std::string &id, const std::string &data, void *)
       {
         LOG_MSG << "setPersistentKey:" << id << data;
         try {
@@ -388,6 +402,11 @@ int main() {
               prefs.uiPrefs[key] = val;
               savePrefsToFile(prefs);
               LOG_MSG << "Saved persistent key: " << key;
+#ifdef _WIN32
+              if (key == "darkOrLight") {
+                changeTheme(val == "dark");
+              }
+#endif
               return;
             }
           }
