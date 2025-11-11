@@ -36,7 +36,7 @@
     noButtonText = false,
     disabled = false,
     showGroups = false,
-    dropdownWidth = "auto",
+    dropdownWidth = "",
     onChange = (i: number, value: string) => {},
     onAboutToShow = async () => {},
   }: Props = $props();
@@ -151,9 +151,7 @@
   let elemAnchor: HTMLElement | undefined = $state();
   let anchorWidth = $state(10);
 
-  // const dropdownWidthCalc = $derived(!elemAnchor || noButtonText ? "auto" : `${anchorWidth}px`);
-
-  // let lastGroupLabel: string | undefined | null = $state(null);
+  const ddWidth = $derived(dropdownWidth ? dropdownWidth : !elemAnchor || noButtonText ? "auto" : `${anchorWidth}px`);
 
   function onItemClick(i: number, v: string) {
     value = v;
@@ -237,7 +235,7 @@
   {#if show}
     <div
       id="{id}-dropdown-list"
-      style="position: fixed; width: {dropdownWidth}; z-index: 1000;"
+      style="position: fixed; width: {ddWidth}; z-index: 1000;"
       class="dropdown-list rounded shadow flex flex-col max-h-48 overflow-y-auto absolute2 {dropdownClassNames}"
       role="listbox"
       bind:this={elemFloat}
