@@ -120,7 +120,9 @@ export const Consts = {
   ThemeKey: "theme",
   // ServerUrlKey: "serverUrl",
   DarkOrLightKey: "darkOrLight",
-  ContextFilesKey: "contextFiles"
+  ContextFilesKey: "contextFiles",
+  ApiOptionsSortedKey: "ApiOptionsSortedKey",
+  ApiOptionsGroupedKey: "ApiOptionsGroupedKey",
 };
 
 export async function setPersistentKey(key: string, value: string, sendToCpp = true) {
@@ -152,4 +154,34 @@ export async function getPersistentKey(key: string, readFromCpp = true): Promise
     clog(`Unable to get persistent key ${key}`, error)
   }
   return null;
+}
+
+
+export function apiOptionsGroupedSorted(
+  ao: { value: string, label: string; _price: number, group: string, desc?: string, hint?: string }[],
+  bSorted: boolean,
+  bGrouped: boolean,
+) {
+  if (bGrouped) {
+    const grouped: Record<string, typeof ao> = {};
+    ao.forEach((api) => {
+      const provider = api.group.split(" ")[0];
+      if (!grouped[provider]) {
+        grouped[provider] = [];
+      }
+      grouped[provider].push(api);
+    });
+    let result: typeof ao = [];
+    Object.keys(grouped).forEach((provider) => {
+      let apis = grouped[provider];
+      if (bSorted) {
+        apis = apis.slice().sort((a, b) => a._price - b._price);
+      }
+      result = result.concat(apis);
+    });
+    return result;
+  } else if (bSorted) {
+    return ao.slice().sort((a, b) => a._price - b._price);
+  }
+  return ao;
 }

@@ -20,8 +20,18 @@
       })
       .then(async (data) => {
         const ss = data as SettingsType;
-        let apis = ss.completionApis;
         console.log("onMount /api/settings:", ss);
+        let apis = ss.completionApis;
+        const seen = new Set();
+        apis = apis.filter((api) => {
+          if (seen.has(api.id)) {
+            return false;
+          } else {
+            seen.add(api.id);
+            return true;
+          }
+        });
+        apis.sort((a, b) => a.combinedPrice - b.combinedPrice);
         const currentApi = (await getPersistentKey(Consts.CurrentApiKey)) || ss.currentApi;
         apis = apis.map((api) => ({
           ...api,

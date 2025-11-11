@@ -10,6 +10,7 @@
     label: string;
     desc?: string;
     hint?: string;
+    group?: string;
   }
 
   interface Props {
@@ -17,8 +18,11 @@
     values?: Array<string | ValueObject>;
     id?: string;
     classNames?: string;
+    dropdownClassNames?: string;
     noButtonText?: boolean;
     disabled?: boolean;
+    showGroups?: boolean;
+    dropdownWidth?: "auto" | "max-content" | "min-content" | string;
     onChange?: (i: number, value: string) => void;
     onAboutToShow?: () => void;
   }
@@ -28,8 +32,11 @@
     values = [],
     id = nextRandomId(4),
     classNames = "preset-outlined-surface-500",
+    dropdownClassNames = "",
     noButtonText = false,
     disabled = false,
+    showGroups = false,
+    dropdownWidth = "auto",
     onChange = (i: number, value: string) => {},
     onAboutToShow = async () => {},
   }: Props = $props();
@@ -65,6 +72,11 @@
     return v.hint;
   }
 
+  function groupStr(v: string | ValueObject) {
+    if (typeof v === "string") return "";
+    return v.group;
+  }
+
   let delAutoUpdate: (() => void) | undefined;
   function recomputePosition() {
     if (!elemAnchor || !elemFloat) return;
@@ -89,7 +101,10 @@
       initResizeObserver(elemAnchor, () => {
         if (delAutoUpdate) delAutoUpdate();
         if (elemAnchor) {
-          anchorWidth = elemAnchor.offsetWidth;
+          if (0 < elemAnchor.offsetWidth) {
+            console.log("Dropdown resize observed, recomputing position", elemAnchor.offsetWidth);
+            anchorWidth = elemAnchor.offsetWidth;
+          }
           recomputePosition();
         }
       });
@@ -136,7 +151,9 @@
   let elemAnchor: HTMLElement | undefined = $state();
   let anchorWidth = $state(10);
 
-  const dropdownWidth = $derived(!elemAnchor || noButtonText ? "auto" : `${elemAnchor.offsetWidth}px`);
+  // const dropdownWidthCalc = $derived(!elemAnchor || noButtonText ? "auto" : `${anchorWidth}px`);
+
+  // let lastGroupLabel: string | undefined | null = $state(null);
 
   function onItemClick(i: number, v: string) {
     value = v;
@@ -174,6 +191,11 @@
         break;
     }
   }
+
+  // function printLastGroup(lastGroup: string | undefined | null, item: string | ValueObject) {
+  //   lastGroupLabel = groupStr(item);
+  //   return lastGroupLabel;
+  // }
 </script>
 
 <svelte:window onmousedown={windowPressed} onkeydown={windowKeyDown} />
@@ -216,12 +238,15 @@
     <div
       id="{id}-dropdown-list"
       style="position: fixed; width: {dropdownWidth}; z-index: 1000;"
-      class="dropdown-list rounded shadow flex flex-col max-h-48 overflow-y-auto absolute2"
+      class="dropdown-list rounded shadow flex flex-col max-h-48 overflow-y-auto absolute2 {dropdownClassNames}"
       role="listbox"
       bind:this={elemFloat}
       transition:fade={{ duration: 100 }}
     >
       {#each values as item, i (valueStr(item) + labelStr(item))}
+        {#if showGroups && (i == 0 || groupStr(item) !== groupStr(values[i - 1]))}
+          <div class="bg-surface-100-900 text-left p-1">{groupStr(item)}</div>
+        {/if}
         {#if isBoolean(item)}
           <div
             class="bg-surface-50-950 hover:bg-surface-100-900 text-left px-3 py-1 w-full
@@ -246,7 +271,7 @@
         {:else}
           <button
             data-value={valueStr(item)}
-            class="bg-surface-50-950 hover:bg-surface-100-900 text-left px-3 py-1 w-full
+            class="bg-surface-50-950 hover:bg-primary-50-950 text-left px-3 py-1 w-full
                 flex items-center justify-between
                 {valueStr(item) === value ? 'font-bold' : ''}"
             role="option"
@@ -254,6 +279,8 @@
             onclick={() => onItemClick(i, valueStr(item))}
             title={hintStr(item)}
           >
+            {#if valueStr(item) === value}✓
+            {/if}
             {labelStr(item)}
             {#if descStr(item)}
               <span class="text-surface-500 text-right">

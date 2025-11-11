@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { clog, testConnection } from "../utils";
+  import { apiOptionsGroupedSorted, clog, isGoodArray, testConnection } from "../utils";
   import * as icons from "@lucide/svelte";
   import Dropdown from "./Dropdown.svelte";
-  import { contextSizeRatio, settings } from "../store";
+  import { bApisGroupedByLabel, bApisSortedByPrice, contextSizeRatio, settings } from "../store";
 
   interface Props {
     fetchSettings: () => void;
@@ -89,11 +89,17 @@
   }
 
   const apiOptions = $derived(
-    $settings.completionApis.map((a) => ({
-      value: a.id,
-      label: a.model,
-      hint: `${a.name} - ${a.model} (cost: ${Number(a.combinedPrice).toFixed(2)})`,
-    })),
+    apiOptionsGroupedSorted(
+      $settings.completionApis.map((a) => ({
+        value: a.id,
+        label: a.model,
+        hint: `${a.name} - ${a.model} (cost: ${Number(a.combinedPrice).toFixed(2)})`,
+        group: a.name,
+        _price: a.combinedPrice,
+      })),
+      $bApisSortedByPrice,
+      $bApisGroupedByLabel,
+    ),
   );
 
   const curApi = $derived(
@@ -131,6 +137,15 @@
   $effect(() => {
     if ($settings) console.log("Statusbar $settings changed:", $state.snapshot($settings));
   });
+
+  $effect(() => {
+    if ($bApisGroupedByLabel)
+      console.log("Statusbar $bApisGroupedByLabel changed:", $state.snapshot($bApisGroupedByLabel));
+  });
+
+  $effect(() => {
+    if (apiOptions) console.log("Statusbar apiOptions changed:", $state.snapshot(apiOptions));
+  });
 </script>
 
 <div class="flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 text-xs">
@@ -166,6 +181,8 @@
       value={curApi}
       onChange={onModelChange}
       classNames="py-[2px] min-w-[10rem] preset-tonal"
+      showGroups={$bApisGroupedByLabel}
+      dropdownWidth="max-content"
     />
   </div>
 </div>

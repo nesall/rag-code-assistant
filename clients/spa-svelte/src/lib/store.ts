@@ -6,3 +6,5 @@ export const messages = writable<ChatMessage[]>([]);
 export const instances = writable<{ value: string; label: string; desc: string }[]>([]);
 export const curInstance = writable<string>("");
 export const contextSizeRatio = writable<number>(0.7);
+export const bApisGroupedByLabel = writable<boolean>(false);
+export const bApisSortedByPrice = writable<boolean>(true);

@@ -2,9 +2,26 @@
   import * as icons from "@lucide/svelte";
   import { Dialog, Portal } from "@skeletonlabs/skeleton-svelte";
   import { onMount } from "svelte";
-  import { apiUrl, clog, Consts, getLastLogs, getPersistentKey, setPersistentKey, stripCommonPrefix } from "../utils";
+  import {
+    apiOptionsGroupedSorted,
+    apiUrl,
+    clog,
+    Consts,
+    getLastLogs,
+    getPersistentKey,
+    setPersistentKey,
+    stripCommonPrefix,
+  } from "../utils";
   import Dropdown from "./Dropdown.svelte";
-  import { messages, settings, temperature, instances, curInstance } from "../store";
+  import {
+    messages,
+    settings,
+    temperature,
+    instances,
+    curInstance,
+    bApisGroupedByLabel,
+    bApisSortedByPrice,
+  } from "../store";
 
   interface Props {
     fetchInstances: () => void;
@@ -54,11 +71,17 @@
   ];
 
   const apiOptions = $derived(
-    $settings.completionApis.map((a) => ({
-      value: a.id,
-      label: a.name,
-      desc: `${a.model} (cost: ${Number(a.combinedPrice).toFixed(2)})`,
-    })),
+    apiOptionsGroupedSorted(
+      $settings.completionApis.map((a) => ({
+        value: a.id,
+        label: a.name,
+        group: a.name,
+        desc: `${a.model} (cost: ${Number(a.combinedPrice).toFixed(2)})`,
+        _price: a.combinedPrice,
+      })),
+      $bApisSortedByPrice,
+      $bApisGroupedByLabel,
+    ),
   );
 
   const curApi = $derived(
@@ -87,6 +110,11 @@
           console.log("Fetched serverUrl from cppApi:", url, serverUrl);
         });
       }
+
+      const sortedStr = await getPersistentKey(Consts.ApiOptionsSortedKey);
+      $bApisSortedByPrice = sortedStr === "1";
+      const groupedStr = await getPersistentKey(Consts.ApiOptionsGroupedKey);
+      $bApisGroupedByLabel = groupedStr === "1";
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -128,11 +156,7 @@
   function onThemeChange(i: number, theme: string) {
     document.documentElement.setAttribute("data-theme", theme);
     curTheme = theme;
-    try {
-      setPersistentKey(Consts.ThemeKey, theme);
-    } catch (e) {
-      clog("Unable to access localStorage", e);
-    }
+    setPersistentKey(Consts.ThemeKey, theme);
   }
 
   function onModelChange(i: number, modelId: string) {
@@ -150,13 +174,9 @@
   }
 
   function onTempChange(e: Event) {
-    try {
-      const t = (e.target as HTMLInputElement).value;
-      setPersistentKey(Consts.TemperatureKey, t);
-      $temperature = Number(t);
-    } catch (e) {
-      clog("Unable to access localStorage", e);
-    }
+    const t = (e.target as HTMLInputElement).value;
+    setPersistentKey(Consts.TemperatureKey, t);
+    $temperature = Number(t);
   }
 
   function describeTemperature(temp: number): string {
@@ -260,6 +280,16 @@
       alert("Switching backends is not supported in web mode.");
     }
   }
+
+  async function onToggleSorting() {
+    clog("onToggleSorting", $bApisSortedByPrice);
+    setPersistentKey(Consts.ApiOptionsSortedKey, $bApisSortedByPrice ? "1" : "0");
+  }
+
+  async function onToggleGrouping() {
+    clog("onToggleGrouping", $bApisGroupedByLabel);
+    setPersistentKey(Consts.ApiOptionsGroupedKey, $bApisGroupedByLabel ? "1" : "0");
+  }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
@@ -347,7 +377,27 @@
                 <span class="italic text-surface-500">No models available</span>
               {:else}
                 <span class="whitespace-nowrap">Default model:</span>
-                <Dropdown values={apiOptions} value={curApi} onChange={onModelChange} />
+                <Dropdown values={apiOptions} value={curApi} onChange={onModelChange} dropdownClassNames="text-sm" />
+                <div class="flex items-center space-x-4">
+                  <label class="flex items-center space-x-1">
+                    <input
+                      class="input checkbox w-4 h-4"
+                      type="checkbox"
+                      bind:checked={$bApisGroupedByLabel}
+                      onchange={onToggleGrouping}
+                    />
+                    <span>Group by provider</span>
+                  </label>
+                  <label class="flex items-center space-x-1">
+                    <input
+                      class="input checkbox w-4 h-4"
+                      type="checkbox"
+                      bind:checked={$bApisSortedByPrice}
+                      onchange={onToggleSorting}
+                    />
+                    <span>Sort by cost</span>
+                  </label>
+                </div>
               {/if}
             </div>
             <div class="flex flex-col space-x-2 items-left w-full">
