@@ -7,10 +7,12 @@
     apiUrl,
     clog,
     Consts,
+    fnv1a64,
     getLastLogs,
     getPersistentKey,
     setPersistentKey,
     stripCommonPrefix,
+    toaster,
   } from "../utils";
   import Dropdown from "./Dropdown.svelte";
   import {
@@ -22,9 +24,10 @@
     bApisGroupedByLabel,
     bApisSortedByPrice,
   } from "../store";
+  import { slide } from "svelte/transition";
 
   interface Props {
-    fetchInstances: () => void;
+    fetchInstances: () => Promise<void>;
     onClear: () => void;
   }
   let { fetchInstances, onClear = () => {} }: Props = $props();
@@ -35,6 +38,15 @@
 
   let openLogsState = $state(false);
   let openStatsState = $state(false);
+  let showProjectsAndSources = $state(false);
+
+  let embedderExecutablePath = $state<string>("");
+  let embedderSettingsFilePaths = $state<string[]>([]);
+
+  let mapIdToRunningEmbedder: Record<string, boolean> = $state({});
+  let mapIdToStartInitiated: Record<string, boolean> = $state({});
+  let mapPathToId: Record<string, string> = $state({});
+  let mapPathToAppKey: Record<string, string> = $state({});
 
   interface StatsType {
     sources: {
@@ -115,6 +127,11 @@
       $bApisSortedByPrice = sortedStr === "1";
       const groupedStr = await getPersistentKey(Consts.ApiOptionsGroupedKey);
       $bApisGroupedByLabel = groupedStr === "1";
+
+      const embExecPath = await getPersistentKey(Consts.EmbedderExecutablePath);
+      embedderExecutablePath = embExecPath || "";
+      const embSettingsFiles = (await getPersistentKey(Consts.EmbedderSettingsFilePaths)) || "[]";
+      embedderSettingsFilePaths = JSON.parse(embSettingsFiles);
     } catch (e) {
       clog("Unable to access localStorage", e);
     }
@@ -290,20 +307,149 @@
     clog("onToggleGrouping", $bApisGroupedByLabel);
     setPersistentKey(Consts.ApiOptionsGroupedKey, $bApisGroupedByLabel ? "1" : "0");
   }
+
+  function onAddNewSettingsPath() {
+    if (embedderSettingsFilePaths.length < 5) {
+      const input = document.querySelector<HTMLInputElement>("#new-settings-input");
+      const path = input?.value.trim();
+      if (!path) return;
+      if (embedderSettingsFilePaths.findIndex((p) => p === path) !== -1) {
+        toaster.error({ title: "This settings file path is already added." });
+        return;
+      }
+      embedderSettingsFilePaths = [...embedderSettingsFilePaths, path];
+      setPersistentKey(Consts.EmbedderSettingsFilePaths, JSON.stringify(embedderSettingsFilePaths));
+      input!.value = "";
+    } else {
+      toaster.error({ title: "Maximum of 5 embedder settings file paths allowed." });
+    }
+  }
+
+  async function fetchProjectIdForSettingsPath(path: string): Promise<string | null> {
+    if (!window.cppApi) return null;
+    try {
+      const projectId = await window.cppApi.getSettingsFileProjectId(path);
+      return projectId;
+    } catch (error) {
+      console.log("fetchProjectIdForSettingsPath failed:", error);
+      return null;
+    }
+  }
+
+  async function updateRunningEmbedderStatuses() {
+    for (const path of embedderSettingsFilePaths) {
+      const configId = await fetchProjectIdForSettingsPath(path);
+      if (configId) {
+        mapPathToId[path] = configId;
+        mapIdToRunningEmbedder[configId] = false;
+        for (const inst of $instances) {
+          if (inst.project_id === configId) {
+            mapIdToRunningEmbedder[configId] = true;
+            mapIdToStartInitiated[configId] = false;
+          }
+        }
+      }
+    }
+  }
+
+  async function onRunStopEmbedder(index: number) {
+    if (!window.cppApi) {
+      alert("Embedder management is not supported in web mode.");
+      return;
+    }
+    const path = embedderSettingsFilePaths[index];
+    if (!path) {
+      toaster.error({ title: "Please provide a valid settings.json file path." });
+      return;
+    }
+    const configId = await fetchProjectIdForSettingsPath(path);
+    if (!configId) {
+      toaster.error({ title: "Unable to fetch project ID for the provided settings.json file." });
+      return;
+    }
+    mapPathToId[path] = configId;
+    if (mapIdToRunningEmbedder[configId]) {
+      await onStopEmbedder(configId, path);
+    } else {
+      await onStartEmbedder(configId, path);
+    }
+  }
+
+  async function onStartEmbedder(configId: string, path: string) {
+    mapIdToRunningEmbedder[configId] = false;
+    for (const inst of $instances) {
+      if (inst.project_id === configId) {
+        mapIdToRunningEmbedder[configId] = true;
+        return;
+      }
+    }
+    try {
+      const res = await window.cppApi.startEmbedder(embedderExecutablePath, path);
+      console.log("onStartEmbedder", res);
+      if (res.status != "success") {
+        throw new Error(res.message || "Unknown error");
+      }
+      mapPathToAppKey[path] = res.appKey;
+      mapIdToStartInitiated[configId] = true;
+      toaster.success({ title: `Embedder process started` });
+      toaster.success({ title: `Please wait a few moments then refresh the connection` });
+    } catch (error) {
+      console.log("Starting embedder failed:", error);
+      toaster.error({ title: `Failed to start: ${error instanceof Error ? error.message : "Unknown error"}` });
+    }
+  }
+
+  async function onStopEmbedder(configId: string, path: string) {
+    const appKey = mapPathToAppKey[path];
+    if (!appKey) {
+      toaster.error({ title: "Unable to find running embedder app key." });
+      return;
+    }
+    try {
+      let host = '';
+      let port = 0;
+      for (const inst of $instances) {
+        if (inst.project_id === configId) {
+          host = inst.host;
+          port = Number(inst.port);
+        }
+      }
+      if (!host || !port) {
+        toaster.error({ title: "Unable to find running embedder" });
+        return;
+      }
+
+      const res = await window.cppApi.stopEmbedder(appKey, host, port);
+      console.log("onStopEmbedder", res);
+      if (res.status != "success") {
+        throw new Error(res.message || "Unknown error");
+      }
+      mapIdToStartInitiated[configId] = false;
+      toaster.success({ title: `Embedder process stopped` });
+      await fetchInstances();
+      updateRunningEmbedderStatuses();
+    } catch (error) {
+      console.log("Stopping embedder failed:", error);
+      toaster.error({ title: `Failed to stop: ${error instanceof Error ? error.message : "Unknown error"}` });
+    }
+  }
 </script>
 
 <div class="toolbar flex space-x-2 items-center w-full bg-surface-100-900 px-2 py-1 rounded">
   <!-- <img src="/logo.png" alt="Logo" class="h-6 w-6" />
   <span class="text-sm">Project</span> -->
-  <span class="text-xs text-surface-700-900" title="Select Project/Instance">
-    <Dropdown
-      values={$instances}
-      value={$curInstance}
-      onChange={onProjectChange}
-      classNames="py-[2px] min-w-[10rem] preset-tonal"
-      onAboutToShow={fetchInstances}
-    />
-  </span>
+  <div class="flex items-center space-x-0">
+    <span class="text-xs text-surface-700-900" title="Select Project/Instance">
+      <Dropdown
+        values={$instances}
+        value={$curInstance}
+        onChange={onProjectChange}
+        classNames="py-[2px] min-w-[10rem] preset-tonal"
+        onAboutToShow={fetchInstances}
+        dropdownWidth="max-content"
+      />
+    </span>
+  </div>
   <span class="w-4">&nbsp;</span>
   <div class="flex space-x-1 items-center ml-auto">
     <button
@@ -331,8 +477,10 @@
       type="button"
       class="btn btn-sm btn-icon hover:preset-tonal"
       aria-label="Settings"
-      onclick={() => {
+      onclick={async () => {
         curTheme = document.documentElement.getAttribute("data-theme") || "cerberus";
+        await fetchInstances();
+        updateRunningEmbedderStatuses();
         openState = true;
       }}
       title="Edit settings"
@@ -363,7 +511,7 @@
 <Dialog open={openState} onOpenChange={(e) => (openState = e.open)}>
   <Portal>
     <Dialog.Positioner class="fixed inset-0 z-50 flex justify-center items-center">
-      <Dialog.Content class="card bg-surface-100-900 w-md p-4 space-y-2 shadow-xl">
+      <Dialog.Content class="card bg-surface-100-900 w-xl p-4 space-y-2 shadow-xl">
         <Dialog.Title class="text-lg font-bold">Settings</Dialog.Title>
         <hr class="hr" />
         <Dialog.Description>
@@ -400,7 +548,7 @@
                 </div>
               {/if}
             </div>
-            <div class="flex flex-col space-x-2 items-left w-full">
+            <div class="flex flex-col items-left w-full">
               <div class="flex justify-between">
                 <span class="whitespace-nowrap">Temperature:</span>
                 <span class="whitespace-nowrap">({describeTemperature($temperature)})</span>
@@ -424,6 +572,98 @@
                     <icons.CircleCheckBig size={16} />
                     Save
                   </button>
+                </div>
+              </div>
+            {/if}
+            <div class="flex space-x-2 items-center">
+              <button
+                type="button"
+                class="btn hover:preset-tonal pl-0 mb-[-10px]"
+                aria-label="Manage"
+                title="Manage Projects and Sources"
+                onclick={() => {
+                  showProjectsAndSources = !showProjectsAndSources;
+                }}
+              >
+                <span>Edit Projects and Sources</span>
+                {#if showProjectsAndSources}
+                  <icons.ChevronUp size={16} />
+                {:else}
+                  <icons.ChevronDown size={16} />
+                {/if}
+              </button>
+            </div>
+            {#if showProjectsAndSources}
+              <div class="flex flex-col space-y-2 items-left w-full text-sm" transition:slide>
+                <div class="flex flex-col space-y-1">
+                  <span class="whitespace-nowrap label">Embedder executable location:</span>
+                  <input
+                    type="text"
+                    class="input w-full px-2 text-xs"
+                    value={embedderExecutablePath}
+                    placeholder="e.g. ./embeddings_cpp.exe or ./embeddings_cpp"
+                    onchange={(e) => {
+                      embedderExecutablePath = (e.target as HTMLInputElement).value;
+                      setPersistentKey(Consts.EmbedderExecutablePath, embedderExecutablePath);
+                    }}
+                  />
+                </div>
+                <div class="flex flex-col space-y-1">
+                  <span class="whitespace-nowrap label">Embedder settings.json locations:</span>
+                  {#each embedderSettingsFilePaths as path, index}
+                    <div class="flex items-center space-x-0">
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-icon preset-tonal mr-1 hover:text-error-500"
+                        aria-label="Remove"
+                        title="Remove this embedder settings file path"
+                        onclick={() => {
+                          embedderSettingsFilePaths = embedderSettingsFilePaths.filter((_, i) => i !== index);
+                          delete mapPathToId[path];
+                          delete mapIdToRunningEmbedder[mapPathToId[path]];
+                          setPersistentKey(Consts.EmbedderSettingsFilePaths, JSON.stringify(embedderSettingsFilePaths));
+                        }}
+                        disabled={mapIdToRunningEmbedder[mapPathToId[path]] || mapIdToStartInitiated[mapPathToId[path]]}
+                      >
+                        <icons.Trash2 size={16} />
+                      </button>
+                      <span class=" w-full px-2 text-xs">{path}</span>
+                      <button
+                        type="button"
+                        class="btn btn-sm ml-1 hover:font-bold2 min-w-20
+                          {mapIdToRunningEmbedder[mapPathToId[path]] ? 'preset-filled-error-500' : 'preset-tonal-primary'}"
+                        aria-label="Start/Stop"
+                        title="Start/stop embedder with this settings file path"
+                        onclick={() => onRunStopEmbedder(index)}
+                        disabled={mapIdToStartInitiated[mapPathToId[path]]}
+                      >
+                        {#if mapIdToRunningEmbedder[mapPathToId[path]]}
+                          <span class="">Stop</span>
+                          <icons.OctagonX size={16} />
+                        {:else}
+                          <span class="">Run</span>
+                          <icons.Play size={16} />
+                        {/if}
+                      </button>
+                    </div>
+                  {/each}
+                  <div class="flex items-center space-x-2 mt-1">
+                    <input
+                      type="text"
+                      id="new-settings-input"
+                      class="input w-full px-2 text-xs"
+                      placeholder="e.g. ./path/to/settings.json"
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-sm preset-filled-primary-500 ml-auto"
+                      aria-label="Add"
+                      title="Add another embedder settings file path"
+                      onclick={onAddNewSettingsPath}
+                    >
+                      Add new settings path
+                    </button>
+                  </div>
                 </div>
               </div>
             {/if}

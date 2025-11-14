@@ -50,7 +50,7 @@ set(SPA_CLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../spa-svelte)
 set(SPA_DIST_DIR ${SPA_CLIENT_DIR}/dist)
 
 # Main executable
-add_executable(${PROJECT_NAME} src/main.cpp appconfig.json app.rc)
+add_executable(${PROJECT_NAME} src/main.cpp src/procmngr.h src/procmngr.cpp appconfig.json app.rc)
 
 if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
 	message(INFO " Win32 Release build")
@@ -63,7 +63,7 @@ target_link_libraries(${PROJECT_NAME} webview::core httplib::httplib utils_log w
 
 # Platform-specific libraries
 if(WIN32)
-    target_link_libraries(${PROJECT_NAME} ole32)
+    target_link_libraries(${PROJECT_NAME} ole32 Comctl32)
 elseif(APPLE)
     find_library(COCOA Cocoa)
     find_library(WEBKIT WebKit)

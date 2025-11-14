@@ -102,7 +102,7 @@
         if (delAutoUpdate) delAutoUpdate();
         if (elemAnchor) {
           if (0 < elemAnchor.offsetWidth) {
-            console.log("Dropdown resize observed, recomputing position", elemAnchor.offsetWidth);
+            // console.log("Dropdown resize observed, recomputing position", elemAnchor.offsetWidth);
             anchorWidth = elemAnchor.offsetWidth;
           }
           recomputePosition();
@@ -270,7 +270,7 @@
           <button
             data-value={valueStr(item)}
             class="bg-surface-50-950 hover:bg-primary-50-950 text-left px-3 py-1 w-full
-                flex items-center justify-between
+                flex items-center gap-2 justify-between
                 {valueStr(item) === value ? 'font-bold' : ''}"
             role="option"
             aria-selected={valueStr(item) === value}

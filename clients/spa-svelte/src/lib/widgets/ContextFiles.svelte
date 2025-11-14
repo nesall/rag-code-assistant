@@ -15,7 +15,7 @@
 
   let openState = $state(false);
   let filterValue = $state("");
-  
+
   interface Document {
     path: string;
     size: number;
@@ -137,7 +137,6 @@
         }}
       />
     </div> -->
-
   </div>
   {#each documents.filter((d) => d._visible) as doc, i (doc.path)}
     <div transition:fly={{ y: 10, duration: 150 }} class="relative2">
@@ -178,7 +177,6 @@
                   class="hover:bg-surface-200-800 odd:bg-surface-100-900 px-2
               flex items-center space-x-2 border-b border-surface-200-800
               {doc._visible ? 'font-bold' : ''}"
-                  transition:fade
                 >
                   <input
                     type="checkbox"

@@ -24,3 +24,17 @@ interface ChatMessage {
   _metaInfoArray?: string[];
   _metaVisible?: boolean;
 }
+
+interface AppInstance {
+  value: string; // for dropdowns
+  label: string; // for dropdowns
+  desc: string; // for dropdowns
+
+  id: string;
+  name: string;
+  project_id: string;
+  host: string;
+  port: number;
+  status: string;
+  last_heartbeat: number;
+}

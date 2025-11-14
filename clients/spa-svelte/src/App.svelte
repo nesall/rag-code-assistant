@@ -49,17 +49,25 @@
   }
 
   async function fetchInstances() {
-    const res = await fetch(apiUrl("/api/instances"));
-    const data = await res.json();
-    console.log("Instances", data);
-    $instances = data.instances.map((a: { id: string; host: string; port: number; name: string }) => {
-      return {
-        value: a.id,
-        label: `${a.name}`,
-        desc: `${a.host}:${a.port}`,
-      };
-    });
-    $curInstance = data.current_instance;
+    try {
+      const res = await fetch(apiUrl("/api/instances"));
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      console.log("Instances", data);
+      $instances = data.instances.map((a: AppInstance) => {
+        return {
+          ...a,
+          value: a.id,
+          label: `${a.name}`,
+          desc: `${a.host}:${a.port}`,
+        };
+      });
+      $curInstance = data.current_instance;
+    } catch (err: any) {
+      clog("Error fetching /api/instances", err);
+      $instances = [];
+      $curInstance = "";
+    }
   }
 
   function onConnectionStatusChange(ok: boolean) {

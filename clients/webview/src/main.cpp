@@ -2,6 +2,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 #include <utils_log/logger.hpp>
+#include "procmngr.h"
 #include <filesystem>
 #include <string>
 #include <cassert>
@@ -11,10 +12,13 @@
 #include <atomic>
 #include <fstream>
 #include <unordered_map>
+#include <random>
+#include <memory>
 
 #ifdef _WIN32
-#define WIN32_LEAM_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commctrl.h>
 #include "WinDarkTitlebarImpl.h"
 #else
 #include <limits.h>
@@ -32,36 +36,145 @@ namespace fs = std::filesystem;
 
 namespace {
 
-  std::string getExecutableDir() {
-    LOG_START;
-#ifdef _WIN32
-    char path[MAX_PATH];
-    GetModuleFileNameA(NULL, path, MAX_PATH);
-    return fs::path(path).parent_path().string();
-#else
-    char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-    return fs::path(std::string(result, (count > 0) ? count : 0)).parent_path().string();
+  class Webview : public webview::webview {
+  public:
+    std::function<void()> onDestroyCallback_;
+  public:
+    Webview(bool debug, void *pWindow) : webview::webview(debug, pWindow) {
+#ifdef WIN32
+      HWND hWnd = static_cast<HWND>(window().value());
+      SetWindowSubclass(hWnd, Webview::BeforeDestroySubclass, 1, reinterpret_cast<DWORD_PTR>(this));
+#elif defined(__APPLE__)
+#elif defined(__linux__)
+      GtkWidget *w = (GtkWidget *)window().value();
+      g_signal_connect(
+        G_OBJECT(w),
+        "delete-event",     // fires before destroy
+        G_CALLBACK(&Webview::OnDeleteEventThunk),
+        this
+      );
 #endif
-  }
-
-  std::string findWebAssets() {
-    LOG_START;
-    std::string exeDir = getExecutableDir();
-    std::vector<std::string> paths = {
-        exeDir + "/web_assets",
-        exeDir + "/../web_assets",
-        "web_assets",
-        "../web_assets",
-        "../../spa-svelte/dist"
-    };
-    for (const auto &path : paths) {
-      if (fs::exists(path) && fs::exists(fs::path(path) / "index.html")) {
-        return path;
-      }
     }
-    return "";
-  }
+
+    void on_window_created() override {
+      webview::webview::on_window_created();
+    }
+
+    void on_window_destroyed(bool skip_termination) override {
+      //if (onDestroyCallback_) onDestroyCallback_();
+      webview::webview::on_window_destroyed(skip_termination);
+    }
+
+    void setAppIcon(const std::string &iconBaseName) {
+      auto assets = findWebAssets();
+      if (assets.empty()) return;
+      std::filesystem::path base = std::filesystem::path(assets) / iconBaseName;
+#if defined(_WIN32)
+      std::wstring iconPath = (base.parent_path() / (base.stem().wstring() + L".ico")).wstring();
+      HICON hIcon = (HICON)LoadImageW(
+        nullptr, iconPath.c_str(), IMAGE_ICON, 32, 32, LR_LOADFROMFILE
+      );
+      if (hIcon) {
+        HWND hwnd = (HWND)window().value();
+        SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+        SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+      }
+#elif defined(__APPLE__)
+      std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
+      NSString *path = [NSString stringWithUTF8String : iconPath.c_str()];
+      NSImage *icon = [[NSImage alloc]initWithContentsOfFile:path];
+      if (icon)[NSApp setApplicationIconImage : icon];
+#elif defined(__linux__)
+      std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
+      GError *error = nullptr;
+      GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file(iconPath.c_str(), &error);
+      if (pixbuf) {
+        gtk_window_set_icon(GTK_WINDOW(window()), pixbuf);
+        g_object_unref(pixbuf);
+      }
+#endif
+    }
+
+    std::pair<int, int> getWindowSize() {
+      std::pair<int, int> res;
+#ifdef WIN32
+      HWND hwnd = (HWND)window().value();
+      RECT rect;
+      GetClientRect(hwnd, &rect);
+      res.first = rect.right - rect.left;
+      res.second = rect.bottom - rect.top;
+#elif defined(__APPLE__)
+      NSWindow *nsWindow = (__bridge NSWindow *)window().value();
+      NSRect rect = [nsWindow contentRectForFrameRect : [nsWindow frame] ];
+      res.first = rect.size.width;
+      res.second = rect.size.height;
+#elif defined(__linux__)
+      GtkWindow *gtkWindow = GTK_WINDOW(window());
+      gint width = 0;
+      gint height = 0;
+      gtk_window_get_size(gtkWindow, &width, &height);
+      res.first = width;
+      res.second = height;
+#endif
+      return res;
+    }
+
+
+    static std::string getExecutableDir() {
+      LOG_START;
+#ifdef _WIN32
+      char path[MAX_PATH];
+      GetModuleFileNameA(NULL, path, MAX_PATH);
+      return fs::path(path).parent_path().string();
+#else
+      char result[PATH_MAX];
+      ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+      return fs::path(std::string(result, (count > 0) ? count : 0)).parent_path().string();
+#endif
+    }
+
+    static std::string findWebAssets() {
+      LOG_START;
+      std::string exeDir = getExecutableDir();
+      std::vector<std::string> paths = {
+          exeDir + "/web_assets",
+          exeDir + "/../web_assets",
+          "web_assets",
+          "../web_assets",
+          "../../spa-svelte/dist"
+      };
+      for (const auto &path : paths) {
+        if (fs::exists(path) && fs::exists(fs::path(path) / "index.html")) {
+          return path;
+        }
+      }
+      return "";
+    }
+
+#ifdef WIN32
+    static LRESULT CALLBACK BeforeDestroySubclass(
+      HWND hwnd, UINT msg, WPARAM w, LPARAM l,
+      UINT_PTR id, DWORD_PTR refData)
+    {
+      auto *self = reinterpret_cast<Webview *>(refData);
+      if (msg == WM_CLOSE) {
+        if (self->onDestroyCallback_) {
+          self->onDestroyCallback_();
+        }
+      }
+      return DefSubclassProc(hwnd, msg, w, l);
+    }
+#elif defined(__APPLE__)
+    // TODO:
+#elif defined(__linux__)
+    static gboolean OnDeleteEventThunk(GtkWidget *widget, GdkEvent *event, gpointer user_data) {
+      auto *self = static_cast<Webview *>(user_data);
+      if (self->onDestroyCallback_) self->onDestroyCallback_();
+      return FALSE;   // allow default handler to continue (destroy window)
+    }
+#endif
+
+  };
 
   struct AppConfig {
     int width = 700;
@@ -93,7 +206,7 @@ namespace {
   };
 
   std::string getConfigPath() {
-    const std::string exeDir = getExecutableDir();
+    const std::string exeDir = Webview::getExecutableDir();
     static std::vector<std::string> paths = {
       exeDir + "/appconfig.json",
       exeDir + "/../appconfig.json",
@@ -165,7 +278,7 @@ namespace {
           }
         }
       } catch (const std::exception &e) {
-        LOG_MSG << "Error parsing appconfig.json: " << e.what();
+        LOG_MSG << "Error parsing appconfig.json:" << e.what();
       }
     } else {
       nlohmann::json j = prefs.toJson();
@@ -174,12 +287,12 @@ namespace {
         if (out.is_open()) {
           out << j.dump(2) << std::endl;
           out.close();
-          LOG_MSG << "Created default appconfig.json at: " << prefsPath;
+          LOG_MSG << "Created default appconfig.json at:" << prefsPath;
         } else {
-          LOG_MSG << "Failed to create appconfig.json at: " << prefsPath;
+          LOG_MSG << "Failed to create appconfig.json at:" << prefsPath;
         }
       } catch (const std::exception &e) {
-        LOG_MSG << "Error writing appconfig.json: " << e.what();
+        LOG_MSG << "Error writing appconfig.json:" << e.what();
       }
     }
     if (prefs.host == "localhost") prefs.host = "127.0.0.1";
@@ -187,48 +300,59 @@ namespace {
     prefs.height = (std::min)((std::max)(prefs.height, 300), 1000);
   }
 
+  std::string hashString(const std::string &str) {
+    std::hash<std::string> hasher;
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(16) << hasher(str);
+    return ss.str();
+  }
 
-  void setAppIcon(webview::webview &w, const std::string &iconBaseName) {
-    auto assets = findWebAssets();
-    if (assets.empty()) return;
-    std::filesystem::path base = std::filesystem::path(assets) / iconBaseName;
-#if defined(_WIN32)
-    std::wstring iconPath = (base.parent_path() / (base.stem().wstring() + L".ico")).wstring();
-    HICON hIcon = (HICON)LoadImageW(
-      nullptr, iconPath.c_str(), IMAGE_ICON, 32, 32, LR_LOADFROMFILE
-    );
-    if (hIcon) {
-      HWND hwnd = (HWND)w.window().value();
-      SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
-      SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+  std::string getProjectId(const std::string &path)
+  {
+    nlohmann::json j;
+    std::ifstream file(path);
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open settings file: " + path);
     }
-#elif defined(__APPLE__)
-    std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
-    NSString *path = [NSString stringWithUTF8String : iconPath.c_str()];
-    NSImage *icon = [[NSImage alloc]initWithContentsOfFile:path];
-    if (icon)[NSApp setApplicationIconImage : icon];
-#elif defined(__linux__)
-    std::string iconPath = (base.parent_path() / (base.stem().string() + ".png")).string();
-    GError *error = nullptr;
-    GdkPixbuf *pixbuf = gdk_pixbuf_new_from_file(iconPath.c_str(), &error);
-    if (pixbuf) {
-      gtk_window_set_icon(GTK_WINDOW(w.window()), pixbuf);
-      g_object_unref(pixbuf);
+    file >> j;
+    std::string s;
+    s = j["source"].value("project_id", "");
+    if (s.empty()) {
+      // Auto-generate
+      auto absPath = std::filesystem::absolute(path).lexically_normal();
+      std::string dirName = absPath.parent_path().filename().string();
+      std::string pathHash = hashString(absPath.generic_string()).substr(0, 8);
+      s = dirName + "-" + pathHash;
     }
-#endif
+    return s;
+  }
+
+  std::string generateAppKey() {
+    // Random 32-character hex string
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+    std::stringstream ss;
+    for (int i = 0; i < 16; i++) {
+      ss << std::hex << std::setw(2) << std::setfill('0') << dis(gen);
+    }
+    return ss.str();
   }
 
 } // anonymous namespace
 
 int main() {
   LOG_START;
-  const std::string assetsPath = findWebAssets();
+  const std::string assetsPath = Webview::findWebAssets();
   if (assetsPath.empty()) {
     LOG_MSG << "Error: Could not find web assets (index.html)";
     LOG_MSG << "Please build the SPA client first:";
     LOG_MSG << "  cd ../spa-svelte && npm run build";
     return 1;
   }
+
+  std::mutex procMutex;
+  std::unordered_map<std::string, std::unique_ptr<ProcessManager>> embedderProcesses_;
 
   AppConfig prefs;
   fetchOrCreatePrefsJson(prefs);
@@ -239,12 +363,12 @@ int main() {
   svr.set_mount_point("/", fs::absolute(assetsPath).string().c_str());
 
   svr.set_logger([](const auto &req, const auto &res) {
-    LOG_MSG << req.method << " " << req.path << " -> " << res.status;
+    LOG_MSG << req.method << req.path << "->" << res.status;
     });
 
   svr.Get("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
-    LOG_MSG << "svr.Get " << req.method << " " << req.path;
+    LOG_MSG << "svr.Get" << req.method << req.path;
     std::string host;
     int port;
     {
@@ -267,7 +391,7 @@ int main() {
 
   svr.Post("/api/.*", [&prefs](const httplib::Request &req, httplib::Response &res) {
     LOG_START;
-    LOG_MSG << "svr.Post " << req.method << " " << req.path;
+    LOG_MSG << "svr.Post" << req.method << req.path;
 
     std::string contentType = req.get_header_value("Content-Type");
     if (contentType.empty()) {
@@ -285,7 +409,7 @@ int main() {
       res.set_chunked_content_provider(
         "text/event-stream",
         [&prefs, req, &res, contentType](size_t offset, httplib::DataSink &sink) {
-          LOG_MSG << "Starting chunked content provider, offset: " << offset;
+          LOG_MSG << "Starting chunked content provider, offset:" << offset;
           std::string host;
           int port;
           {
@@ -318,7 +442,7 @@ int main() {
             return false;
           }
           if (postRes->status != 200) {
-            LOG_MSG << "Error: Backend streaming returned status " << postRes->status;
+            LOG_MSG << "Error: Backend streaming returned status" << postRes->status;
             res.status = postRes->status;
           }
           
@@ -373,11 +497,27 @@ int main() {
     LOG_MSG << "Using window size, w" << prefs.width << ", h" << prefs.height;
 
 
-    webview::webview w(true, nullptr);
-    setAppIcon(w, "logo");
+    Webview w(
+#ifdef _DEBUG
+      true
+#else
+      false
+#endif
+      , nullptr);
+    w.setAppIcon("logo");
     w.set_title(std::format("Phenix Code Assistant - v1.0 [build date: {} {}]", __DATE__, __TIME__));
     w.set_size(prefs.width, prefs.height, WEBVIEW_HINT_NONE);
-
+    w.onDestroyCallback_ = [&w, &prefs]
+      {
+        auto [width, height] = w.getWindowSize();
+        LOG_MSG << "Saving window size [" << LOG_NOSPACE << width << ", " << height << "]";
+        {
+          std::lock_guard<std::mutex> lock(prefs.mutex_);
+          prefs.width = width;
+          prefs.height = height;
+          savePrefsToFile(prefs);
+        }
+      };
 #ifdef _WIN32
     HWND hWnd = static_cast<HWND>(w.window().value());
     WinDarkTitlebarImpl winDarkImpl;
@@ -401,7 +541,7 @@ int main() {
               std::lock_guard<std::mutex> lock(prefs.mutex_);
               prefs.uiPrefs[key] = val;
               savePrefsToFile(prefs);
-              LOG_MSG << "Saved persistent key: " << key;
+              LOG_MSG << "Saved persistent key:" << key;
 #ifdef _WIN32
               if (key == "darkOrLight") {
                 changeTheme(val == "dark");
@@ -426,14 +566,12 @@ int main() {
             std::lock_guard<std::mutex> lock(prefs.mutex_);
             auto it = prefs.uiPrefs.find(key);
             if (it != prefs.uiPrefs.end()) {
-              // Return a valid JSON string (quoted). Example: "\"dark\""
               return nlohmann::json(it->second).dump();
             }
           }
         } catch (const std::exception &ex) {
           LOG_MSG << ex.what();
         }
-        // Return JSON null when not found
         return "null";
       }
     );
@@ -442,16 +580,12 @@ int main() {
       {
         LOG_MSG << "setServerUrl:" << url;
         try {
-          // Parse URL (simple parsing for this example)
           size_t hostStart = url.find("://") + 3;
           size_t portStart = url.find(":", hostStart);
           size_t pathStart = url.find("/", hostStart);
-
           std::lock_guard<std::mutex> lock(prefs.mutex_);
-
           std::string newHost;
           int newPort = prefs.port;
-
           if (portStart != std::string::npos) {
             newHost = url.substr(hostStart, portStart - hostStart);
             std::string portStr = url.substr(portStart + 1, pathStart - portStart - 1);
@@ -460,16 +594,12 @@ int main() {
             newHost = url.substr(hostStart, pathStart - hostStart);
           }
           if (newHost == "localhost") newHost = "127.0.0.1";
-
-          // Update preferences
           prefs.host = newHost;
           prefs.port = newPort;
-
           savePrefsToFile(prefs);
-
           return "{\"status\": \"success\", \"message\": \"Server connection updated\"}";
         } catch (const std::exception &e) {
-          LOG_MSG << "Error updating server connection: " << e.what();
+          LOG_MSG << "Error updating server connection:" << e.what();
           return "{\"status\": \"error\", \"message\": \"" + std::string(e.what()) + "\"}";
         }
       }
@@ -489,12 +619,121 @@ int main() {
       }
     );
 
+    w.bind("getSettingsFileProjectId", [](const std::string &data) -> std::string
+      {
+        LOG_MSG << "getSettingsFileProjectId";
+        try {
+          auto j = nlohmann::json::parse(data);
+          if (j.is_array() && 0 < j.size()) {
+            auto id = getProjectId(j[0]);
+            LOG_MSG << "  \"" << LOG_NOSPACE << id << "\"";
+            return nlohmann::json(id).dump();
+          }
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
+        }
+        return "null";
+      }
+    );
+
+    w.bind("startEmbedder", [&procMutex, &embedderProcesses_](const std::string &data) -> std::string
+      {
+        LOG_MSG << "startEmbedder:" << data;
+        nlohmann::json res;
+        try {
+          auto j = nlohmann::json::parse(data);
+          if (j.is_array() && 1 < j.size()) {
+            std::string exePath = j[0].get<std::string>();
+            std::string configPath = j[1].get<std::string>();
+            if (!std::filesystem::exists(exePath))
+              throw std::runtime_error("Embedder executable not found: " + exePath);
+            if (!std::filesystem::exists(configPath))
+              throw std::runtime_error("Embedder config file not found: " + configPath);
+            std::lock_guard<std::mutex> lock(procMutex);
+            auto appKey = generateAppKey();
+            embedderProcesses_.emplace(appKey, std::make_unique<ProcessManager>());
+            auto proc = embedderProcesses_[appKey].get();
+            assert(proc);
+            if (proc->startProcess(exePath, { "--config", configPath, "serve", "--appkey", appKey })) {
+              auto projectId = getProjectId(configPath);
+              res["status"] = "success";
+              res["message"] = "Embedder started successfully";
+              res["projectId"] = projectId;
+              res["appKey"] = appKey; // use to id proc
+              LOG_MSG << "Started embedder process" << proc->getProcessId() << "for projectId" << projectId;
+            } else {
+              throw std::runtime_error("Failed to start embedder process");
+            }
+          } else {
+            throw std::runtime_error("Invalid parameters for startEmbedder");
+          }
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
+          res["status"] = "error";
+          res["message"] = ex.what();
+        }
+        return res.dump();
+      }
+    );
+
+    w.bind("stopEmbedder", [&prefs, &procMutex, &embedderProcesses_](const std::string &data) -> std::string
+      {
+        LOG_MSG << "stopEmbedder:" << data;
+        nlohmann::json res;
+        try {
+          auto j = nlohmann::json::parse(data);
+          if (j.is_array() && 2 < j.size()) {
+            const std::string appKey = j[0].get<std::string>();
+            if (!embedderProcesses_.contains(appKey))
+              throw std::runtime_error("Embedder appKey not found: " + appKey);
+            std::string host = j[1].get<std::string>();
+            if (host.empty())
+              throw std::runtime_error("Invalid host for embedder shutdown");
+            const int port = j[2].get<int>();
+            if (port <= 0)
+              throw std::runtime_error("Invalid port for embedder shutdown");
+            if (host == "localhost") host = "127.0.0.1";
+            std::lock_guard<std::mutex> lock(procMutex);
+            auto proc = embedderProcesses_[appKey].get();
+            assert(proc);
+            httplib::Client cli(host, port);
+            httplib::Headers headers = { {"X-App-Key", appKey} };
+            auto result = cli.Post("/api/shutdown", headers, "", "application/json");
+            if (result && result->status == 200) {
+              LOG_MSG << "Shutdown request sent to embedder process" << proc->getProcessId();
+            } else {
+              LOG_MSG << "Failed to send shutdown request to embedder process" << proc->getProcessId();
+            }
+            if (proc->waitForCompletion(10000)) {
+              LOG_MSG << "Embedder process" << proc->getProcessId() << "exited cleanly";
+            } else {
+              LOG_MSG << "Embedder process" << proc->getProcessId() << "did not exit in time, terminating...";
+              proc->stopProcess();
+            }
+            embedderProcesses_.erase(appKey);
+            res["status"] = "success";
+            res["message"] = "Embedder stopped successfully";
+          } else {
+            throw std::runtime_error("Invalid parameters for startEmbedder");
+          }
+        } catch (const std::exception &ex) {
+          LOG_MSG << ex.what();
+          res["status"] = "error";
+          res["message"] = ex.what();
+        }
+        return res.dump();
+      }
+    );
+    
     w.init(R"(
       window.cppApi = {
         setServerUrl,
         getServerUrl,
         setPersistentKey,
         getPersistentKey,
+        getSettingsFileProjectId,
+        startEmbedder,
+        stopEmbedder,
       };
       window.addEventListener('error', function(e) {
         console.error('JS Error:', e.message, e.filename, e.lineno);
@@ -503,14 +742,45 @@ int main() {
     )");
 
     const std::string url = "http://127.0.0.1:" + std::to_string(serverPort);
-    LOG_MSG << "Navigating to: " << url;
+    LOG_MSG << "Navigating to:" << url;
 
     w.navigate(url);
     w.run();
 
-    LOG_MSG << "Webview closed by user, stopping HTTP server...";
+    LOG_MSG << "Webview closed by user.";
+
+    LOG_MSG << "Stopping HTTP server...";
   } catch (const std::exception &e) {
-    LOG_MSG << "Webview error: " << e.what();
+    LOG_MSG << "Webview error:" << e.what();
+  }
+  
+  // Graceful shutdown of processes
+  for (auto &proc : embedderProcesses_) {
+    LOG_MSG << "Stopping embedder process" << proc.first;
+    std::string host;
+    int port;
+    {
+      std::lock_guard<std::mutex> lock(prefs.mutex_);
+      host = prefs.host;
+      port = prefs.port;
+    }
+    httplib::Client cli(host, port);
+    httplib::Headers headers = { {"X-App-Key", proc.first} };
+    auto result = cli.Post("/api/shutdown", headers, "", "application/json");
+    if (result && result->status == 200) {
+      LOG_MSG << "Shutdown request sent to embedder process" << proc.second->getProcessId();
+    } else {
+      LOG_MSG << "Failed to send shutdown request to embedder process" << proc.second->getProcessId();
+    }
+  }
+
+  for (auto &proc : embedderProcesses_) {
+    if (proc.second->waitForCompletion(10000)) {
+      LOG_MSG << "Embedder process" << proc.second->getProcessId() << "exited cleanly";
+    } else {
+      LOG_MSG << "Embedder process" << proc.second->getProcessId() << "did not exit in time, terminating...";
+      proc.second->stopProcess();
+    }
   }
 
   svr.stop();

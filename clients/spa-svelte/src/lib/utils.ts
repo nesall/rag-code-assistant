@@ -114,6 +114,21 @@ export const initResizeObserver = (ref: HTMLElement, handler: any) => {
   return resizeObserver;
 };
 
+export function fnv1a64(str: string): string {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str); // UTF-8 bytes
+  let hash = BigInt("0xcbf29ce484222325");
+  const FNV_PRIME = BigInt("0x100000001b3");
+  for (const byte of data) {
+    hash ^= BigInt(byte);
+    hash *= FNV_PRIME;
+    hash &= BigInt("0xFFFFFFFFFFFFFFFF"); // keep 64-bit
+  }
+  return hash.toString(16).padStart(16, "0");
+}
+
+
+
 export const Consts = {
   CurrentApiKey: "api",
   TemperatureKey: "temperature",
@@ -123,6 +138,8 @@ export const Consts = {
   ContextFilesKey: "contextFiles",
   ApiOptionsSortedKey: "ApiOptionsSortedKey",
   ApiOptionsGroupedKey: "ApiOptionsGroupedKey",
+  EmbedderExecutablePath: "EmbedderExecutablePath",
+  EmbedderSettingsFilePaths: "EmbedderSettingsFilePaths"
 };
 
 export async function setPersistentKey(key: string, value: string, sendToCpp = true) {
