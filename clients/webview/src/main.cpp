@@ -501,7 +501,7 @@ int main() {
 #ifdef _DEBUG
       true
 #else
-      false
+      true // for now
 #endif
       , nullptr);
     w.setAppIcon("logo");

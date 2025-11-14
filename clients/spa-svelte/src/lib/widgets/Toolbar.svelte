@@ -337,8 +337,11 @@
   }
 
   async function updateRunningEmbedderStatuses() {
+    console.log("updateRunningEmbedderStatuses");
+    mapIdToRunningEmbedder = {};
     for (const path of embedderSettingsFilePaths) {
       const configId = await fetchProjectIdForSettingsPath(path);
+      console.log("embedderSettingsFilePaths", path, configId);
       if (configId) {
         mapPathToId[path] = configId;
         mapIdToRunningEmbedder[configId] = false;
@@ -346,6 +349,8 @@
           if (inst.project_id === configId) {
             mapIdToRunningEmbedder[configId] = true;
             mapIdToStartInitiated[configId] = false;
+            console.log("Running embedder found for configId:", configId);
+            break;
           }
         }
       }
@@ -380,6 +385,7 @@
     for (const inst of $instances) {
       if (inst.project_id === configId) {
         mapIdToRunningEmbedder[configId] = true;
+        mapIdToStartInitiated[configId] = false;
         return;
       }
     }

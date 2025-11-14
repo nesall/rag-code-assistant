@@ -13,12 +13,12 @@
       "value": "dark"
     },
     {
-      "key": "EmbedderExecutablePath",
-      "value": "C:/Users/Arman/workspace/projects/embedder_cpp/build_dbg/Debug/embeddings_cpp.exe"
-    },
-    {
       "key": "ApiOptionsGroupedKey",
       "value": "1"
+    },
+    {
+      "key": "EmbedderExecutablePath",
+      "value": "C:/Users/Arman/workspace/projects/embedder_cpp/build_dbg/Debug/embeddings_cpp.exe"
     },
     {
       "key": "EmbedderSettingsFilePaths",
