@@ -408,20 +408,26 @@
   async function onStopEmbedder(configId: string, path: string) {
     const appKey = mapPathToAppKey[path];
     if (!appKey) {
-      toaster.error({ title: "Unable to find running embedder app key." });
+      toaster.error({ title: "Not authorized. No matching app key found" });
       return;
     }
     try {
-      let host = '';
+      let host = "";
       let port = 0;
+      let found = false;
       for (const inst of $instances) {
         if (inst.project_id === configId) {
           host = inst.host;
           port = Number(inst.port);
+          found = true;
         }
       }
-      if (!host || !port) {
+      if (!found) {
         toaster.error({ title: "Unable to find running embedder" });
+        return;
+      }
+      if (!host || !port) {
+        toaster.error({ title: "Invalid embedder host or port fetched." });
         return;
       }
 
@@ -637,7 +643,9 @@
                       <button
                         type="button"
                         class="btn btn-sm ml-1 hover:font-bold2 min-w-20
-                          {mapIdToRunningEmbedder[mapPathToId[path]] ? 'preset-filled-error-500' : 'preset-tonal-primary'}"
+                          {mapIdToRunningEmbedder[mapPathToId[path]]
+                          ? 'preset-filled-error-500'
+                          : 'preset-tonal-primary'}"
                         aria-label="Start/Stop"
                         title="Start/stop embedder with this settings file path"
                         onclick={() => onRunStopEmbedder(index)}
