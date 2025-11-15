@@ -339,6 +339,71 @@ namespace {
     return ss.str();
   }
 
+  struct ProcessesHolder {
+    mutable std::mutex mutex;
+
+    ProcessManager *getOrCreateProcess(const std::string &appKey, const std::string &projectId) {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto it = embedderProcesses_.find(appKey);
+      if (it != embedderProcesses_.end()) {
+        return it->second.get();
+      }
+      auto procMgr = std::make_unique<ProcessManager>();
+      ProcessManager *procPtr = procMgr.get();
+      embedderProcesses_[appKey] = std::move(procMgr);
+      projectIdToAppKey_[projectId] = appKey;
+      appKeyToProjectId_[appKey] = projectId;
+      return procPtr;
+    }
+
+    void discardProcess(const std::string &appKey) {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto it = embedderProcesses_.find(appKey);
+      if (it != embedderProcesses_.end()) {
+        embedderProcesses_.erase(it);
+        auto projIt = appKeyToProjectId_.find(appKey);
+        if (projIt != appKeyToProjectId_.end()) {
+          projectIdToAppKey_.erase(projIt->second);
+          appKeyToProjectId_.erase(projIt);
+        }
+      }
+    }
+
+    ProcessManager *getProcessWithApiKey(const std::string &appKey) const {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto it = embedderProcesses_.find(appKey);
+      if (it != embedderProcesses_.end()) {
+        return it->second.get();
+      }
+      return nullptr;
+    }
+
+    std::string getApiKeyFromProjectId(const std::string &projectId) const {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto it = projectIdToAppKey_.find(projectId);
+      if (it != projectIdToAppKey_.end()) {
+        return it->second;
+      }
+      return "";
+    }
+
+    void waitToStopThenTerminate() {
+      for (auto &proc : embedderProcesses_) {
+        if (proc.second->waitForCompletion(10000)) {
+          LOG_MSG << "Embedder process" << proc.second->getProcessId() << "exited cleanly";
+        } else {
+          LOG_MSG << "Embedder process" << proc.second->getProcessId() << "did not exit in time, terminating...";
+          proc.second->stopProcess();
+        }
+      }
+    }
+
+  private:
+    std::unordered_map<std::string, std::unique_ptr<ProcessManager>> embedderProcesses_;
+    std::unordered_map<std::string, std::string> projectIdToAppKey_; // we assume 1 to 1 relationship
+    std::unordered_map<std::string, std::string> appKeyToProjectId_;
+  };
+
 } // anonymous namespace
 
 int main() {
@@ -351,8 +416,7 @@ int main() {
     return 1;
   }
 
-  std::mutex procMutex;
-  std::unordered_map<std::string, std::unique_ptr<ProcessManager>> embedderProcesses_;
+  ProcessesHolder procUtil;
 
   AppConfig prefs;
   fetchOrCreatePrefsJson(prefs);
@@ -636,7 +700,7 @@ int main() {
       }
     );
 
-    w.bind("startEmbedder", [&procMutex, &embedderProcesses_](const std::string &data) -> std::string
+    w.bind("startEmbedder", [&procUtil](const std::string &data) -> std::string
       {
         LOG_MSG << "startEmbedder:" << data;
         nlohmann::json res;
@@ -649,19 +713,18 @@ int main() {
               throw std::runtime_error("Embedder executable not found: " + exePath);
             if (!std::filesystem::exists(configPath))
               throw std::runtime_error("Embedder config file not found: " + configPath);
-            std::lock_guard<std::mutex> lock(procMutex);
             auto appKey = generateAppKey();
-            embedderProcesses_.emplace(appKey, std::make_unique<ProcessManager>());
-            auto proc = embedderProcesses_[appKey].get();
+            auto projectId = getProjectId(configPath);
+            auto proc = procUtil.getOrCreateProcess(appKey, projectId);
             assert(proc);
             if (proc->startProcess(exePath, { "--config", configPath, "serve", "--appkey", appKey })) {
-              auto projectId = getProjectId(configPath);
               res["status"] = "success";
               res["message"] = "Embedder started successfully";
               res["projectId"] = projectId;
               res["appKey"] = appKey; // use to id proc
               LOG_MSG << "Started embedder process" << proc->getProcessId() << "for projectId" << projectId;
             } else {
+              procUtil.discardProcess(appKey);
               throw std::runtime_error("Failed to start embedder process");
             }
           } else {
@@ -676,7 +739,7 @@ int main() {
       }
     );
 
-    w.bind("stopEmbedder", [&prefs, &procMutex, &embedderProcesses_](const std::string &data) -> std::string
+    w.bind("stopEmbedder", [&prefs, &procUtil](const std::string &data) -> std::string
       {
         LOG_MSG << "stopEmbedder:" << data;
         nlohmann::json res;
@@ -684,7 +747,8 @@ int main() {
           auto j = nlohmann::json::parse(data);
           if (j.is_array() && 2 < j.size()) {
             const std::string appKey = j[0].get<std::string>();
-            if (!embedderProcesses_.contains(appKey))
+            auto proc = procUtil.getProcessWithApiKey(appKey);
+            if (!proc)
               throw std::runtime_error("Embedder appKey not found: " + appKey);
             std::string host = j[1].get<std::string>();
             if (host.empty())
@@ -693,8 +757,6 @@ int main() {
             if (port <= 0)
               throw std::runtime_error("Invalid port for embedder shutdown");
             if (host == "localhost") host = "127.0.0.1";
-            std::lock_guard<std::mutex> lock(procMutex);
-            auto proc = embedderProcesses_[appKey].get();
             assert(proc);
             httplib::Client cli(host, port);
             httplib::Headers headers = { {"X-App-Key", appKey} };
@@ -710,7 +772,7 @@ int main() {
               LOG_MSG << "Embedder process" << proc->getProcessId() << "did not exit in time, terminating...";
               proc->stopProcess();
             }
-            embedderProcesses_.erase(appKey);
+            procUtil.discardProcess(appKey);
             res["status"] = "success";
             res["message"] = "Embedder stopped successfully";
           } else {
@@ -754,9 +816,8 @@ int main() {
     LOG_MSG << "Webview error:" << e.what();
   }
   
-  // Graceful shutdown of processes
-  for (auto &proc : embedderProcesses_) {
-    LOG_MSG << "Stopping embedder process" << proc.first;
+  // Graceful shutdown of self-started processes
+  {
     std::string host;
     int port;
     {
@@ -765,22 +826,45 @@ int main() {
       port = prefs.port;
     }
     httplib::Client cli(host, port);
-    httplib::Headers headers = { {"X-App-Key", proc.first} };
-    auto result = cli.Post("/api/shutdown", headers, "", "application/json");
+    auto result = cli.Get("/api/instances");
     if (result && result->status == 200) {
-      LOG_MSG << "Shutdown request sent to embedder process" << proc.second->getProcessId();
+      try {
+        auto j = nlohmann::json::parse(result->body);
+        if (j.is_object()) {
+          j = j["instances"];
+          for (const auto &item : j) {
+            if (item.contains("project_id") && item["project_id"].is_string()) {
+              std::string project_id = item["project_id"].get<std::string>();
+              std::string host = item.value("host", "");
+              int port = item.value("port", 0);
+              if (host.empty() || port <= 0) {
+                LOG_MSG << "Invalid host/port for instance with project_id:" << project_id;
+                continue;
+              }
+              std::string appKey = procUtil.getApiKeyFromProjectId(project_id);
+              if (appKey.empty()) {
+                LOG_MSG << "Embedder process" << project_id << "not started by this client. Skipped.";
+                continue;
+              }
+              if (host == "localhost") host = "127.0.0.1";
+              httplib::Client cli(host, port);
+              httplib::Headers headers = { {"X-App-Key", appKey} };
+              auto result = cli.Post("/api/shutdown", headers, "", "application/json");
+              if (result && result->status == 200) {
+                LOG_MSG << "Shutdown request sent to embedder process for project_id:" << project_id;
+              } else {
+                LOG_MSG << "Failed to send shutdown request to embedder process for project_id:" << project_id;
+              }
+            }
+          }
+        }
+      } catch (const std::exception &e) {
+        LOG_MSG << "Error parsing /api/instances response:" << e.what();
+      }
     } else {
-      LOG_MSG << "Failed to send shutdown request to embedder process" << proc.second->getProcessId();
+      LOG_MSG << "Failed to query /api/instances";
     }
-  }
-
-  for (auto &proc : embedderProcesses_) {
-    if (proc.second->waitForCompletion(10000)) {
-      LOG_MSG << "Embedder process" << proc.second->getProcessId() << "exited cleanly";
-    } else {
-      LOG_MSG << "Embedder process" << proc.second->getProcessId() << "did not exit in time, terminating...";
-      proc.second->stopProcess();
-    }
+    procUtil.waitToStopThenTerminate();
   }
 
   svr.stop();
