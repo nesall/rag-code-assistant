@@ -132,23 +132,23 @@
         sendMessage(message, attachmentsLoaded, sourceids, true);
         return;
       }
-      let atts: Attachment[] = [];
-      for (const file of attachments) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const content = reader.result;
-          if (typeof content === "string") {
-            atts.push({ filename: file.name, content });
-          }
-        };
-        reader.onloadend = () => {
-          if (attachments.indexOf(file) === attachments.length - 1) {
-            clog("Final input with attachments ready!");
-            sendMessage(message, atts, sourceids, true);
-          }
-        };
-        reader.readAsText(file);
-      }
+      const loadFile = (file: File) =>
+        new Promise<Attachment>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve({ filename: file.name, content: r.result as string });
+          r.onerror = reject;
+          r.readAsText(file);
+        });
+
+      Promise.all(attachments.map(loadFile))
+        .then((atts) => {
+          attachmentsLoaded = atts;
+          sendMessage(message, atts, sourceids, true);
+        })
+        .catch((err) => {
+          toaster.error({ title: "Error reading attachment files", description: err.message || err });
+          clog("Error reading attachment files:", err);
+        });
     }
   }
 
@@ -365,7 +365,7 @@
   }
 </script>
 
-<div class="chat-panel p-3 w-full h-full flex flex-col space-y-8  overflow-y-auto">
+<div class="chat-panel p-3 w-full h-full flex flex-col space-y-8 overflow-y-auto">
   <div class="flex flex-col space-y-6 mb-4 grow p-4" id="chat-messages">
     {#if $messages.length === 0}
       <p class="text text-center text-surface-500">No messages yet. Start the conversation!</p>
