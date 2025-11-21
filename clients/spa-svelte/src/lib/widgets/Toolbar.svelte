@@ -263,6 +263,9 @@
       .then((res) => res.json())
       .then((data) => {
         console.log("STATS", data);
+        if (data.error) {
+          throw new Error(data.error);
+        }
         statsData = data;
         if (statsData) {
           if (statsData.sources) {
@@ -282,11 +285,12 @@
             console.log("Top Files:", statsData.sources.top_files);
           }
         }
+        openStatsState = true;
       })
       .catch((er) => {
         console.log(er);
+        toaster.error({ title: `Failed to fetch stats: ${er instanceof Error ? er.message : "Unknown error"}` });
       });
-    openStatsState = true;
   }
 
   async function onProjectChange(i: number, modelId: string) {
@@ -408,7 +412,7 @@
   async function onStopEmbedder(configId: string, path: string) {
     const appKey = mapPathToAppKey[path];
     if (!appKey) {
-      toaster.error({ title: "Not authorized. No matching app key found" });
+      toaster.error({ title: "Not authorized to stop an externally started server." });
       return;
     }
     try {
